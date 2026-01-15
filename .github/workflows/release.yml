@@ -42,7 +42,7 @@ jobs:
           CHANGESET_FILE=".changeset/auto-${{ github.sha }}.md"
           printf '%s\n' \
             '---' \
-            '"@prover-coder-ai/eslint-plugin-suggest-members": patch' \
+            '"@prover-coder-ai/component-tagger": patch' \
             '---' \
             '' \
             'chore: automated version bump' \
@@ -53,16 +53,13 @@ jobs:
         run: pnpm changeset version
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Sync plugin meta
-        if: steps.auto_changeset.outputs.has_changeset == 'true' && github.actor != 'github-actions[bot]'
-        run: pnpm --filter @prover-coder-ai/eslint-plugin-suggest-members run sync-plugin-meta
       - name: Read version
         id: release_version
         if: steps.auto_changeset.outputs.has_changeset == 'true' && github.actor != 'github-actions[bot]'
         shell: bash
         run: |
           set -euo pipefail
-          VERSION="$(node -p "require('./packages/eslint-template/package.json').version")"
+          VERSION="$(node -p "require('./packages/app/package.json').version")"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
       - name: Commit version changes
         if: steps.auto_changeset.outputs.has_changeset == 'true' && github.actor != 'github-actions[bot]'
@@ -94,6 +91,11 @@ jobs:
           fi
           git tag -a "$TAG" -m "$TAG"
           git push origin "$TAG"
+      - name: Prepare package README
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp README.md packages/app/README.md
       - name: Configure npm auth
         if: github.actor != 'github-actions[bot]'
         shell: bash
@@ -110,8 +112,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          VERSION="$(node -p "require('./packages/eslint-template/package.json').version")"
-          if npm view @prover-coder-ai/eslint-plugin-suggest-members@"${VERSION}" version >/dev/null 2>&1; then
+          VERSION="$(node -p "require('./packages/app/package.json').version")"
+          if npm view @prover-coder-ai/component-tagger@"${VERSION}" version >/dev/null 2>&1; then
             echo "Version ${VERSION} already published; skipping npm publish."
             exit 0
           fi
@@ -125,7 +127,7 @@ jobs:
           set -euo pipefail
           OWNER="${{ github.repository_owner }}"
           OWNER_LOWER="$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]')"
-          PKG_NAME="$(node -p "require('./packages/eslint-template/package.json').name")"
+          PKG_NAME="$(node -p "require('./packages/app/package.json').name")"
           PKG_SUFFIX="${PKG_NAME#*/}"
           if [ "$PKG_SUFFIX" = "$PKG_NAME" ]; then
             GH_PKG="@${OWNER_LOWER}/${PKG_NAME}"
@@ -135,8 +137,8 @@ jobs:
           export GH_PKG
           printf '%s\n' "@${OWNER_LOWER}:registry=https://npm.pkg.github.com" >> "$HOME/.npmrc"
           printf '%s\n' "//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}" >> "$HOME/.npmrc"
-          node -e "const fs=require('fs');const path='packages/eslint-template/package.json';const pkg=require('./'+path);pkg.name=process.env.GH_PKG;fs.writeFileSync(path, JSON.stringify(pkg, null, 2)+'\\n');"
-          pnpm --filter ./packages/eslint-template publish --registry https://npm.pkg.github.com --no-git-checks
+          node -e "const fs=require('fs');const path='packages/app/package.json';const pkg=require('./'+path);pkg.name=process.env.GH_PKG;fs.writeFileSync(path, JSON.stringify(pkg, null, 2)+'\\n');"
+          pnpm --filter ./packages/app publish --registry https://npm.pkg.github.com --no-git-checks
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Create GitHub Release
