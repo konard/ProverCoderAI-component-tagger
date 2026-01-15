@@ -26,10 +26,20 @@ const stripQuery = (id: string): string => {
   return queryIndex === -1 ? id : id.slice(0, queryIndex)
 }
 
-const relativeFromCwd = (absolutePath: string): Effect.Effect<string, never, Path> =>
+// CHANGE: compute relative paths from the resolved Vite root instead of process.cwd().
+// WHY: keep component paths stable across monorepos and custom Vite roots.
+// QUOTE(TZ): "Сам компонент должен быть в текущем app но вот что бы его протестировать надо создать ещё один проект который наш текущий апп будет подключать"
+// REF: user-2026-01-14-frontend-consumer
+// SOURCE: n/a
+// FORMAT THEOREM: forall p in Path: relative(root, p) = r -> resolve(root, r) = p
+// PURITY: SHELL
+// EFFECT: Effect<string, never, Path>
+// INVARIANT: output is deterministic for a fixed root
+// COMPLEXITY: O(n)/O(1)
+const relativeFromRoot = (rootDir: string, absolutePath: string): Effect.Effect<string, never, Path> =>
   pipe(
     Path,
-    Effect.map((pathService) => pathService.relative(process.cwd(), absolutePath))
+    Effect.map((pathService) => pathService.relative(rootDir, absolutePath))
   )
 
 const attrExists = (node: t.JSXOpeningElement, attrName: string): boolean =>
@@ -108,17 +118,20 @@ const makeBabelTagger = (relativeFilename: string): PluginObj => ({
 // COMPLEXITY: O(n)/O(1)
 const runTransform = (
   code: string,
-  id: string
+  id: string,
+  rootDir: string
 ): Effect.Effect<ViteTransformResult | null, ComponentTaggerError, Path> => {
   const cleanId = stripQuery(id)
 
   return pipe(
-    relativeFromCwd(cleanId),
+    relativeFromRoot(rootDir, cleanId),
     Effect.flatMap((relative) =>
       Effect.tryPromise({
         try: () =>
           transformAsync(code, {
             filename: cleanId,
+            babelrc: false,
+            configFile: false,
             parserOpts: {
               sourceType: "module",
               plugins: ["typescript", "jsx", "decorators-legacy"]
@@ -157,14 +170,22 @@ const runTransform = (
 // EFFECT: Effect<ViteTransformResult | null, ComponentTaggerError, never>
 // INVARIANT: no duplicate path attributes
 // COMPLEXITY: O(n)/O(1)
-export const componentTagger = (): PluginOption => ({
-  name: "component-path-tagger",
-  enforce: "pre",
-  transform(code, id) {
-    if (!isJsxFile(id)) {
-      return null
-    }
+export const componentTagger = (): PluginOption => {
+  let resolvedRoot = process.cwd()
 
-    return Effect.runPromise(pipe(runTransform(code, id), Effect.provide(NodePathLayer)))
+  return {
+    name: "component-path-tagger",
+    enforce: "pre",
+    apply: "serve",
+    configResolved(config) {
+      resolvedRoot = config.root
+    },
+    transform(code, id) {
+      if (!isJsxFile(id)) {
+        return null
+      }
+
+      return Effect.runPromise(pipe(runTransform(code, id, resolvedRoot), Effect.provide(NodePathLayer)))
+    }
   }
-})
+}
