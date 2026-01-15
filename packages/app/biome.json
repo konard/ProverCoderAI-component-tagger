@@ -12,6 +12,9 @@
 		"enabled": false,
 		"indentStyle": "tab"
 	},
+	"organizeImports": {
+		"enabled": false
+	},
 	"linter": {
 		"enabled": false,
 		"rules": {
