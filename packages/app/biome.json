@@ -12,6 +12,9 @@
 		"enabled": false,
 		"indentStyle": "tab"
 	},
+	"assist": {
+		"enabled": false
+	},
 	"linter": {
 		"enabled": false,
 		"rules": {
