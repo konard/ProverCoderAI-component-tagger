@@ -38,7 +38,7 @@
   "homepage": "https://github.com/ProverCoderAI/effect-template#readme",
   "packageManager": "pnpm@10.28.0",
   "dependencies": {
-    "@babel/core": "^7.28.5",
+    "@babel/core": "^7.28.6",
     "@effect/platform": "^0.94.1",
     "@effect/platform-node": "^0.104.0",
     "effect": "^3.19.14"
