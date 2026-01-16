@@ -4,10 +4,14 @@
   "description": "Component tagger Vite plugin for JSX metadata",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "directories": {
     "doc": "doc"
   },
   "scripts": {
+    "prepack": "pnpm run build",
     "build": "tsc -p tsconfig.json --outDir dist --declaration --declarationMap false",
     "dev": "tsc -p tsconfig.json --watch --outDir dist --declaration --declarationMap false",
     "lint": "npx @ton-ai-core/vibecode-linter src/",
