@@ -3,6 +3,8 @@ dist/
 build/
 coverage/
 packages/*/dist/
+packages/pack-consumer/.pack/
+packages/pack-consumer/pnpm-lock.yaml
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

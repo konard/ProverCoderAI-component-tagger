@@ -12,15 +12,16 @@
   },
   "scripts": {
     "prepack": "pnpm run build",
-    "build": "tsc -p tsconfig.json --outDir dist --declaration --declarationMap false",
-    "dev": "tsc -p tsconfig.json --watch --outDir dist --declaration --declarationMap false",
+    "prebuild": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch",
     "lint": "npx @ton-ai-core/vibecode-linter src/",
     "lint:tests": "npx @ton-ai-core/vibecode-linter tests/",
     "lint:effect": "npx eslint --config eslint.effect-ts-check.config.mjs .",
     "check": "pnpm run typecheck",
     "prestart": "pnpm run build",
     "start": "node dist/index.js",
-    "test": "pnpm run lint:tests && vitest run",
+    "test": "pnpm run build && pnpm run lint:tests && vitest run",
     "typecheck": "tsc --noEmit"
   },
   "repository": {
