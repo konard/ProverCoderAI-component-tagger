@@ -16,7 +16,7 @@ jobs:
     if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
-      - uses: ProverCoderAI/action-release@v1.0.7
+      - uses: ProverCoderAI/action-release@v1.0.8
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           npm_token: ${{ secrets.NPM_TOKEN }}
@@ -28,3 +28,4 @@ jobs:
           publish_npm: true
           publish_github_packages: true
           skip_if_unchanged: true
+          neutral_on_no_changes: true
