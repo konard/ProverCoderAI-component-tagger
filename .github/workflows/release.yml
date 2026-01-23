@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
   id-token: write
   pull-requests: write
   packages: write
@@ -28,4 +29,4 @@ jobs:
           publish_npm: true
           publish_github_packages: true
           skip_if_unchanged: true
-          neutral_on_no_changes: true
+          cancel_on_no_changes: true
