@@ -24,6 +24,6 @@ jobs:
       - name: Dist deps prune (lint)
         run: |
           pnpm dlx @prover-coder-ai/dist-deps-prune scan \
-            --package ./packages/eslint-template/package.json \
+            --package ./packages/app/package.json \
             --prune-dev true \
             --silent
