@@ -21,6 +21,39 @@ import {
 // INVARIANT: tests verify mathematical properties of tagging predicates
 // COMPLEXITY: O(1) per test
 
+// Helper function for testing component tagging with different options
+const testComponentTagging = (
+  description: string,
+  options: { tagComponents?: boolean } | undefined,
+  expected: boolean
+) => {
+  it.effect(description, () =>
+    Effect.sync(() => {
+      const elements = [createJsxElement(t, "MyComponent"), createJsxElement(t, "Route")]
+      for (const element of elements) {
+        expect(shouldTagElement(element, options, t)).toBe(expected)
+      }
+    }))
+}
+
+// Helper function for testing processJsxElement integration
+const testProcessing = (
+  description: string,
+  elementName: string,
+  options: { tagComponents?: boolean } | undefined,
+  expectedProcessed: boolean,
+  expectedAttrCount: number
+) => {
+  it.effect(description, () =>
+    Effect.sync(() => {
+      const element = createJsxElementWithLocation(t, elementName, 5, 2)
+      const context = createTestContext("src/App.tsx", "data-path", options)
+      const result = processJsxElement(element, context, t)
+      expect(result).toBe(expectedProcessed)
+      expect(element.attributes).toHaveLength(expectedAttrCount)
+    }))
+}
+
 describe("jsx-tagger: shouldTagElement scoping", () => {
   describe("HTML tags (lowercase)", () => {
     it.effect("always tags HTML elements regardless of options", () =>
@@ -47,42 +80,10 @@ describe("jsx-tagger: shouldTagElement scoping", () => {
   })
 
   describe("React Components (PascalCase)", () => {
-    it.effect("tags Components when tagComponents is true", () =>
-      Effect.sync(() => {
-        const myComponent = createJsxElement(t, "MyComponent")
-        const route = createJsxElement(t, "Route")
-
-        expect(shouldTagElement(myComponent, { tagComponents: true }, t)).toBe(true)
-        expect(shouldTagElement(route, { tagComponents: true }, t)).toBe(true)
-      }))
-
-    it.effect("skips Components when tagComponents is false", () =>
-      Effect.sync(() => {
-        const myComponent = createJsxElement(t, "MyComponent")
-        const route = createJsxElement(t, "Route")
-
-        expect(shouldTagElement(myComponent, { tagComponents: false }, t)).toBe(false)
-        expect(shouldTagElement(route, { tagComponents: false }, t)).toBe(false)
-      }))
-
-    it.effect("tags Components by default (undefined options)", () =>
-      Effect.sync(() => {
-        const myComponent = createJsxElement(t, "MyComponent")
-        const route = createJsxElement(t, "Route")
-
-        // Default behavior: tag everything
-        expect(shouldTagElement(myComponent, undefined, t)).toBe(true)
-        expect(shouldTagElement(route, undefined, t)).toBe(true)
-      }))
-
-    it.effect("tags Components by default (empty options object)", () =>
-      Effect.sync(() => {
-        const myComponent = createJsxElement(t, "MyComponent")
-        const route = createJsxElement(t, "Route")
-
-        expect(shouldTagElement(myComponent, {}, t)).toBe(true)
-        expect(shouldTagElement(route, {}, t)).toBe(true)
-      }))
+    testComponentTagging("tags Components when tagComponents is true", { tagComponents: true }, true)
+    testComponentTagging("skips Components when tagComponents is false", { tagComponents: false }, false)
+    testComponentTagging("tags Components by default (undefined options)", undefined, true)
+    testComponentTagging("tags Components by default (empty options object)", {}, true)
   })
 
   describe("JSXMemberExpression (e.g., Foo.Bar)", () => {
@@ -120,45 +121,15 @@ describe("jsx-tagger: shouldTagElement scoping", () => {
   })
 
   describe("processJsxElement integration with tagComponents", () => {
-    it.effect("tags HTML elements with default options", () =>
-      Effect.sync(() => {
-        const divElement = createJsxElementWithLocation(t, "div", 1, 0)
-        const context = createTestContext()
-
-        const result = processJsxElement(divElement, context, t)
-
-        expect(result).toBe(true)
-        expect(divElement.attributes).toHaveLength(1)
-      }))
-
-    it.effect("tags React Components with tagComponents: true", () =>
-      Effect.sync(() => {
-        const myComponent = createJsxElementWithLocation(t, "MyComponent", 5, 2)
-        const context = createTestContext("src/App.tsx", "data-path", { tagComponents: true })
-
-        const result = processJsxElement(myComponent, context, t)
-        expect(result).toBe(true)
-        expect(myComponent.attributes).toHaveLength(1)
-      }))
-
-    it.effect("skips React Components with tagComponents: false", () =>
-      Effect.sync(() => {
-        const myComponent = createJsxElementWithLocation(t, "MyComponent", 5, 2)
-        const context = createTestContext("src/App.tsx", "data-path", { tagComponents: false })
-
-        const result = processJsxElement(myComponent, context, t)
-        expect(result).toBe(false)
-        expect(myComponent.attributes).toHaveLength(0)
-      }))
-
-    it.effect("tags React Components by default (no options)", () =>
-      Effect.sync(() => {
-        const myComponent = createJsxElementWithLocation(t, "Route", 10, 4)
-        const context = createTestContext("src/Routes.tsx")
-
-        const result = processJsxElement(myComponent, context, t)
-        expect(result).toBe(true)
-        expect(myComponent.attributes).toHaveLength(1)
-      }))
+    testProcessing("tags HTML elements with default options", "div", undefined, true, 1)
+    testProcessing("tags React Components with tagComponents: true", "MyComponent", { tagComponents: true }, true, 1)
+    testProcessing(
+      "skips React Components with tagComponents: false",
+      "MyComponent",
+      { tagComponents: false },
+      false,
+      0
+    )
+    testProcessing("tags React Components by default (no options)", "Route", undefined, true, 1)
   })
 })
