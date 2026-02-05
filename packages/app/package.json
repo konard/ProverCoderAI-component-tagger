@@ -1,6 +1,6 @@
 {
   "name": "@prover-coder-ai/component-tagger",
-  "version": "1.0.24",
+  "version": "1.0.26",
   "description": "Component tagger Vite plugin and Babel plugin for JSX metadata",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
