@@ -148,7 +148,7 @@ describe("jsx-tagger", () => {
     it.effect("tags HTML elements with default options", () =>
       Effect.sync(() => {
         const divElement = createJsxElementWithLocation("div", 1, 0)
-        const context: JsxTaggerContext = { relativeFilename: "src/App.tsx" }
+        const context: JsxTaggerContext = { relativeFilename: "src/App.tsx", attributeName: "data-path" }
 
         const result = processJsxElement(divElement, context, t)
 
@@ -158,7 +158,7 @@ describe("jsx-tagger", () => {
         const attr = divElement.attributes[0] as t.JSXAttribute
         expect(t.isJSXIdentifier(attr.name)).toBe(true)
         if (t.isJSXIdentifier(attr.name)) {
-          expect(attr.name.name).toBe("path")
+          expect(attr.name.name).toBe("data-path")
         }
         expect(t.isStringLiteral(attr.value)).toBe(true)
         if (t.isStringLiteral(attr.value)) {
@@ -171,6 +171,7 @@ describe("jsx-tagger", () => {
         const myComponent = createJsxElementWithLocation("MyComponent", 5, 2)
         const context: JsxTaggerContext = {
           relativeFilename: "src/App.tsx",
+          attributeName: "data-path",
           options: { tagComponents: true }
         }
 
@@ -185,6 +186,7 @@ describe("jsx-tagger", () => {
         const myComponent = createJsxElementWithLocation("MyComponent", 5, 2)
         const context: JsxTaggerContext = {
           relativeFilename: "src/App.tsx",
+          attributeName: "data-path",
           options: { tagComponents: false }
         }
 
@@ -197,7 +199,7 @@ describe("jsx-tagger", () => {
     it.effect("tags React Components by default (no options)", () =>
       Effect.sync(() => {
         const myComponent = createJsxElementWithLocation("Route", 10, 4)
-        const context: JsxTaggerContext = { relativeFilename: "src/Routes.tsx" }
+        const context: JsxTaggerContext = { relativeFilename: "src/Routes.tsx", attributeName: "data-path" }
 
         const result = processJsxElement(myComponent, context, t)
 
@@ -208,7 +210,7 @@ describe("jsx-tagger", () => {
     it.effect("is idempotent - does not add duplicate path attributes", () =>
       Effect.sync(() => {
         const divElement = createJsxElementWithLocation("div", 1, 0)
-        const context: JsxTaggerContext = { relativeFilename: "src/App.tsx" }
+        const context: JsxTaggerContext = { relativeFilename: "src/App.tsx", attributeName: "data-path" }
 
         // First call should add attribute
         const result1 = processJsxElement(divElement, context, t)
@@ -225,7 +227,7 @@ describe("jsx-tagger", () => {
       Effect.sync(() => {
         const divElement = t.jsxOpeningElement(t.jsxIdentifier("div"), [], false)
         // No loc property set
-        const context: JsxTaggerContext = { relativeFilename: "src/App.tsx" }
+        const context: JsxTaggerContext = { relativeFilename: "src/App.tsx", attributeName: "data-path" }
 
         const result = processJsxElement(divElement, context, t)
 
