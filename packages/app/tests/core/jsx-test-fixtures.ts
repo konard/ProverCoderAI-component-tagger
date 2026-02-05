@@ -47,3 +47,38 @@ export const createNodeWithClassName = (
  */
 export const createEmptyNode = (types: typeof t): t.JSXOpeningElement =>
   types.jsxOpeningElement(types.jsxIdentifier("div"), [])
+
+/**
+ * Creates an empty JSX opening element with location info for testing.
+ * Combines node creation and location setup to reduce duplication.
+ *
+ * @pure true
+ * @complexity O(1)
+ */
+export const createEmptyNodeWithLocation = (
+  types: typeof t,
+  line = 10,
+  column = 5
+): t.JSXOpeningElement => {
+  const node = createEmptyNode(types)
+  node.loc = createMockLocation(line, column)
+  return node
+}
+
+/**
+ * Creates a JSX opening element with className attribute and location info for testing.
+ * Combines node creation and location setup to reduce duplication.
+ *
+ * @pure true
+ * @complexity O(1)
+ */
+export const createNodeWithClassNameAndLocation = (
+  types: typeof t,
+  className = "container",
+  line = 15,
+  column = 2
+): t.JSXOpeningElement => {
+  const node = createNodeWithClassName(types, className)
+  node.loc = createMockLocation(line, column)
+  return node
+}

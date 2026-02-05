@@ -3,7 +3,11 @@ import { describe, expect, it } from "@effect/vitest"
 import { Effect } from "effect"
 
 import { attrExists, createPathAttribute, type JsxTaggerContext, processJsxElement } from "../../src/core/jsx-tagger.js"
-import { createEmptyNode, createMockLocation, createNodeWithClassName } from "./jsx-test-fixtures.js"
+import {
+  createEmptyNodeWithLocation,
+  createNodeWithClassName,
+  createNodeWithClassNameAndLocation
+} from "./jsx-test-fixtures.js"
 
 // CHANGE: add comprehensive unit tests for jsx-tagger core functions
 // WHY: ensure mathematical invariants and idempotency properties are verified
@@ -129,9 +133,7 @@ describe("jsx-tagger", () => {
 
     it.effect("adds path attribute when element has no attributes", () =>
       Effect.sync(() => {
-        const node = createEmptyNode(t)
-        node.loc = createMockLocation()
-
+        const node = createEmptyNodeWithLocation(t)
         const result = processJsxElement(node, createTestContext(), t)
 
         expect(result).toBe(true)
@@ -146,9 +148,7 @@ describe("jsx-tagger", () => {
 
     it.effect("adds path attribute when element has other attributes", () =>
       Effect.sync(() => {
-        const node = createNodeWithClassName(t)
-        node.loc = createMockLocation(15, 2)
-
+        const node = createNodeWithClassNameAndLocation(t)
         const result = processJsxElement(node, createTestContext(), t)
 
         expect(result).toBe(true)
@@ -192,8 +192,7 @@ describe("jsx-tagger", () => {
 
     it.effect("is truly idempotent - processing twice produces same result", () =>
       Effect.sync(() => {
-        const node = createEmptyNode(t)
-        node.loc = createMockLocation()
+        const node = createEmptyNodeWithLocation(t)
 
         // First processing
         const result1 = processJsxElement(node, createTestContext(), t)

@@ -1,8 +1,7 @@
-import { describe, expect, it } from "@effect/vitest"
+import { describe, it } from "@effect/vitest"
 import { Effect } from "effect"
-import path from "node:path"
 
-import { transformJsx } from "./babel-test-utils.js"
+import { transformAndValidateJsx } from "./babel-test-utils.js"
 
 // CHANGE: extract JSX transformation tests to separate file.
 // WHY: comply with max-lines ESLint rule (300 lines limit).
@@ -20,13 +19,10 @@ describe("babel-plugin JSX transformations", () => {
           return <div>Hello</div>
         }
       `
-      const testFilename = path.resolve("/project", "src/App.tsx")
+      const { expectContains } = transformAndValidateJsx(code, "src/App.tsx")
 
-      const result = transformJsx(code, testFilename, { rootDir: "/project" })
-
-      expect(result).not.toBeNull()
-      expect(result?.code).toContain("data-path=\"src/App.tsx:")
-      expect(result?.code).toContain("<div")
+      expectContains("data-path=\"src/App.tsx:")
+      expectContains("<div")
     }))
 
   it.effect("transforms multiple JSX elements", () =>
@@ -41,15 +37,10 @@ describe("babel-plugin JSX transformations", () => {
           )
         }
       `
-      const testFilename = path.resolve("/project", "src/App.tsx")
+      const { expectDataPathMinCount } = transformAndValidateJsx(code, "src/App.tsx")
 
-      const result = transformJsx(code, testFilename, { rootDir: "/project" })
-
-      expect(result).not.toBeNull()
       // Should contain data-path attributes for div, header, and main
-      const pathMatches = result?.code?.match(/data-path="src\/App\.tsx:\d+:\d+"/g)
-      expect(pathMatches).toBeDefined()
-      expect(pathMatches?.length).toBeGreaterThanOrEqual(3)
+      expectDataPathMinCount(3)
     }))
 
   it.effect("does not add duplicate data-path attribute (idempotency)", () =>
@@ -59,16 +50,12 @@ describe("babel-plugin JSX transformations", () => {
           return <div data-path="existing:1:0">Hello</div>
         }
       `
-      const testFilename = path.resolve("/project", "src/App.tsx")
+      const { expectContains, expectDataPathCount } = transformAndValidateJsx(code, "src/App.tsx")
 
-      const result = transformJsx(code, testFilename, { rootDir: "/project" })
-
-      expect(result).not.toBeNull()
       // Should keep the existing data-path attribute
-      expect(result?.code).toContain("data-path=\"existing:1:0\"")
+      expectContains("data-path=\"existing:1:0\"")
       // Count data-path attributes - should only be one
-      const pathMatches = result?.code?.match(/data-path="/g)
-      expect(pathMatches?.length).toBe(1)
+      expectDataPathCount(1)
     }))
 
   it.effect("does not interfere with other path-like attributes", () =>
@@ -78,15 +65,12 @@ describe("babel-plugin JSX transformations", () => {
           return <img src="/image.png" alt="test" />
         }
       `
-      const testFilename = path.resolve("/project", "src/App.tsx")
+      const { expectContains } = transformAndValidateJsx(code, "src/App.tsx")
 
-      const result = transformJsx(code, testFilename, { rootDir: "/project" })
-
-      expect(result).not.toBeNull()
       // Should preserve src attribute
-      expect(result?.code).toContain("src=\"/image.png\"")
+      expectContains("src=\"/image.png\"")
       // Should add data-path attribute
-      expect(result?.code).toContain("data-path=\"src/App.tsx:")
+      expectContains("data-path=\"src/App.tsx:")
     }))
 
   it.effect("handles JSX with existing attributes", () =>
@@ -96,17 +80,14 @@ describe("babel-plugin JSX transformations", () => {
           return <button className="btn" id="submit" onClick={handleClick}>Click</button>
         }
       `
-      const testFilename = path.resolve("/project", "src/components/Button.tsx")
+      const { expectContains } = transformAndValidateJsx(code, "src/components/Button.tsx")
 
-      const result = transformJsx(code, testFilename, { rootDir: "/project" })
-
-      expect(result).not.toBeNull()
       // Should preserve existing attributes
-      expect(result?.code).toContain("className=\"btn\"")
-      expect(result?.code).toContain("id=\"submit\"")
-      expect(result?.code).toContain("onClick={handleClick}")
+      expectContains("className=\"btn\"")
+      expectContains("id=\"submit\"")
+      expectContains("onClick={handleClick}")
       // Should add data-path attribute
-      expect(result?.code).toContain("data-path=\"src/components/Button.tsx:")
+      expectContains("data-path=\"src/components/Button.tsx:")
     }))
 
   it.effect("handles self-closing JSX elements", () =>
@@ -116,13 +97,10 @@ describe("babel-plugin JSX transformations", () => {
           return <input type="text" />
         }
       `
-      const testFilename = path.resolve("/project", "src/App.tsx")
+      const { expectContains } = transformAndValidateJsx(code, "src/App.tsx")
 
-      const result = transformJsx(code, testFilename, { rootDir: "/project" })
-
-      expect(result).not.toBeNull()
-      expect(result?.code).toContain("data-path=\"src/App.tsx:")
-      expect(result?.code).toContain("type=\"text\"")
+      expectContains("data-path=\"src/App.tsx:")
+      expectContains("type=\"text\"")
     }))
 
   it.effect("handles nested JSX components", () =>
@@ -142,15 +120,10 @@ describe("babel-plugin JSX transformations", () => {
           )
         }
       `
-      const testFilename = path.resolve("/project", "src/pages/Page.tsx")
+      const { expectDataPathMinCount } = transformAndValidateJsx(code, "src/pages/Page.tsx")
 
-      const result = transformJsx(code, testFilename, { rootDir: "/project" })
-
-      expect(result).not.toBeNull()
-      // All components should be tagged
-      const pathMatches = result?.code?.match(/data-path="src\/pages\/Page\.tsx:\d+:\d+"/g)
-      expect(pathMatches).toBeDefined()
-      expect(pathMatches?.length).toBeGreaterThanOrEqual(6) // Layout, Header, Logo, Nav, Content, Article
+      // All components should be tagged: Layout, Header, Logo, Nav, Content, Article
+      expectDataPathMinCount(6)
     }))
 
   it.effect("handles JSX fragments", () =>
@@ -165,14 +138,10 @@ describe("babel-plugin JSX transformations", () => {
           )
         }
       `
-      const testFilename = path.resolve("/project", "src/App.tsx")
+      const { expectDataPathMinCount } = transformAndValidateJsx(code, "src/App.tsx")
 
-      const result = transformJsx(code, testFilename, { rootDir: "/project" })
-
-      expect(result).not.toBeNull()
-      // Fragments don't get tagged, but their children do
-      const pathMatches = result?.code?.match(/data-path="/g)
-      expect(pathMatches?.length).toBeGreaterThanOrEqual(2) // Two div elements
+      // Fragments don't get tagged, but their children do (two div elements)
+      expectDataPathMinCount(2)
     }))
 
   it.effect("handles JSX with spread attributes", () =>
@@ -182,13 +151,10 @@ describe("babel-plugin JSX transformations", () => {
           return <div {...props}>Content</div>
         }
       `
-      const testFilename = path.resolve("/project", "src/App.tsx")
+      const { expectContains } = transformAndValidateJsx(code, "src/App.tsx")
 
-      const result = transformJsx(code, testFilename, { rootDir: "/project" })
-
-      expect(result).not.toBeNull()
-      expect(result?.code).toContain("{...props}")
-      expect(result?.code).toContain("data-path=\"src/App.tsx:")
+      expectContains("{...props}")
+      expectContains("data-path=\"src/App.tsx:")
     }))
 
   it.effect("handles TypeScript JSX generics", () =>
@@ -198,12 +164,9 @@ describe("babel-plugin JSX transformations", () => {
           return <div>Generic Component</div>
         }
       `
-      const testFilename = path.resolve("/project", "src/Generic.tsx")
+      const { expectContains } = transformAndValidateJsx(code, "src/Generic.tsx")
 
-      const result = transformJsx(code, testFilename, { rootDir: "/project" })
-
-      expect(result).not.toBeNull()
-      expect(result?.code).toContain("data-path=\"src/Generic.tsx:")
+      expectContains("data-path=\"src/Generic.tsx:")
     }))
 
   it.effect("correctly formats data-path with line and column", () =>
@@ -211,13 +174,10 @@ describe("babel-plugin JSX transformations", () => {
       const code = `function App() {
   return <div>Test</div>
 }`
-      const testFilename = path.resolve("/project", "src/App.tsx")
+      const { expectMatch } = transformAndValidateJsx(code, "src/App.tsx")
 
-      const result = transformJsx(code, testFilename, { rootDir: "/project" })
-
-      expect(result).not.toBeNull()
       // The data-path should contain line 2 (where <div> is) and column number
-      expect(result?.code).toMatch(/data-path="src\/App\.tsx:2:\d+"/)
+      expectMatch(/data-path="src\/App\.tsx:2:\d+"/)
     }))
 
   it.effect("handles components with multiple props on multiple lines", () =>
@@ -235,13 +195,10 @@ describe("babel-plugin JSX transformations", () => {
           )
         }
       `
-      const testFilename = path.resolve("/project", "src/App.tsx")
+      const { expectContains } = transformAndValidateJsx(code, "src/App.tsx")
 
-      const result = transformJsx(code, testFilename, { rootDir: "/project" })
-
-      expect(result).not.toBeNull()
-      expect(result?.code).toContain("data-path=\"src/App.tsx:")
-      expect(result?.code).toContain("className=\"primary\"")
-      expect(result?.code).toContain("onClick={handleClick}")
+      expectContains("data-path=\"src/App.tsx:")
+      expectContains("className=\"primary\"")
+      expectContains("onClick={handleClick}")
     }))
 })

@@ -4,7 +4,7 @@ import { Effect } from "effect"
 import path from "node:path"
 
 import { componentTaggerBabelPlugin } from "../../src/shell/babel-plugin.js"
-import { expectPathAttribute, transformJsx } from "./babel-test-utils.js"
+import { expectPathAttribute, transformAndValidateJsx, transformJsx } from "./babel-test-utils.js"
 
 // CHANGE: extract plugin configuration and rootDir tests to separate file.
 // WHY: comply with max-lines ESLint rule (300 lines limit).
@@ -77,16 +77,13 @@ describe("babel-plugin configuration", () => {
     it.effect("uses custom attribute name when provided", () =>
       Effect.sync(() => {
         const code = "const App = () => { return <div>Hello</div> }"
-        const testFilename = path.resolve("/project", "src/App.tsx")
 
-        const result = transformJsx(code, testFilename, {
-          rootDir: "/project",
+        const { code: transformedCode } = transformAndValidateJsx(code, "src/App.tsx", {
           attributeName: "custom-path"
         })
 
-        expect(result).not.toBeNull()
-        expect(result?.code).toContain("custom-path=\"src/App.tsx:")
-        expect(result?.code).not.toContain("data-path=")
+        expect(transformedCode).toContain("custom-path=\"src/App.tsx:")
+        expect(transformedCode).not.toContain("data-path=")
       }))
 
     it.effect("respects idempotency with custom attribute name", () =>
@@ -96,19 +93,14 @@ describe("babel-plugin configuration", () => {
             return <div custom-path="existing:1:0">Hello</div>
           }
         `
-        const testFilename = path.resolve("/project", "src/App.tsx")
-
-        const result = transformJsx(code, testFilename, {
-          rootDir: "/project",
+        const { expectContains, expectDataPathCount } = transformAndValidateJsx(code, "src/App.tsx", {
           attributeName: "custom-path"
         })
 
-        expect(result).not.toBeNull()
         // Should keep the existing custom-path attribute
-        expect(result?.code).toContain("custom-path=\"existing:1:0\"")
+        expectContains("custom-path=\"existing:1:0\"")
         // Count custom-path attributes - should only be one
-        const pathMatches = result?.code?.match(/custom-path="/g)
-        expect(pathMatches?.length).toBe(1)
+        expectDataPathCount(1)
       }))
   })
 
