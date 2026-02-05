@@ -1,10 +1,8 @@
 import { type PluginObj, types as t } from "@babel/core"
-import { layer as NodePathLayer } from "@effect/platform-node/NodePath"
-import { Path } from "@effect/platform/Path"
-import { Effect, pipe } from "effect"
 
 import { isJsxFile } from "../core/component-path.js"
 import { createJsxTaggerVisitor, type JsxTaggerContext } from "../core/jsx-tagger.js"
+import { computeRelativePath } from "../core/path-service.js"
 
 /**
  * Options for the component path Babel plugin.
@@ -42,34 +40,6 @@ type BabelState = {
 // EFFECT: n/a
 // INVARIANT: context contains valid relative path
 // COMPLEXITY: O(n)/O(1)
-/**
- * Computes relative path using Effect's Path service.
- *
- * @param rootDir - Root directory for relative path calculation.
- * @param filename - Absolute file path to convert.
- * @returns Relative path string.
- *
- * @pure false
- * @effect Path service access
- * @invariant result is a valid relative path
- * @complexity O(n)/O(1)
- */
-// CHANGE: use Effect.runSync with Path service for synchronous Babel context.
-// WHY: Babel plugins are synchronous; Effect.runSync bridges to Effect-style path handling.
-// REF: lint:effect compliance
-// FORMAT THEOREM: ∀ (root, path): relativePath(root, path) = Path.relative(root, path)
-// PURITY: SHELL
-// EFFECT: Path service
-// INVARIANT: always returns a valid string
-// COMPLEXITY: O(n)/O(1)
-const computeRelativePath = (rootDir: string, filename: string): string =>
-  pipe(
-    Path,
-    Effect.map((pathService) => pathService.relative(rootDir, filename)),
-    Effect.provide(NodePathLayer),
-    Effect.runSync
-  )
-
 const getContextFromState = (state: BabelState): JsxTaggerContext | null => {
   const filename = state.filename
 

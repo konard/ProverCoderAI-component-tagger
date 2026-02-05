@@ -1,11 +1,11 @@
 import { type PluginObj, transformAsync, types as t } from "@babel/core"
-import { layer as NodePathLayer } from "@effect/platform-node/NodePath"
-import { Path } from "@effect/platform/Path"
+import type { Path } from "@effect/platform/Path"
 import { Effect, pipe } from "effect"
 import type { PluginOption } from "vite"
 
 import { isJsxFile } from "../core/component-path.js"
 import { createJsxTaggerVisitor, type JsxTaggerContext } from "../core/jsx-tagger.js"
+import { NodePathLayer, relativeFromRoot } from "../core/path-service.js"
 
 type BabelTransformResult = Awaited<ReturnType<typeof transformAsync>>
 
@@ -26,22 +26,6 @@ const stripQuery = (id: string): string => {
   const queryIndex = id.indexOf("?")
   return queryIndex === -1 ? id : id.slice(0, queryIndex)
 }
-
-// CHANGE: compute relative paths from the resolved Vite root instead of process.cwd().
-// WHY: keep component paths stable across monorepos and custom Vite roots.
-// QUOTE(TZ): "Сам компонент должен быть в текущем app но вот что бы его протестировать надо создать ещё один проект который наш текущий апп будет подключать"
-// REF: user-2026-01-14-frontend-consumer
-// SOURCE: n/a
-// FORMAT THEOREM: forall p in Path: relative(root, p) = r -> resolve(root, r) = p
-// PURITY: SHELL
-// EFFECT: Effect<string, never, Path>
-// INVARIANT: output is deterministic for a fixed root
-// COMPLEXITY: O(n)/O(1)
-const relativeFromRoot = (rootDir: string, absolutePath: string): Effect.Effect<string, never, Path> =>
-  pipe(
-    Path,
-    Effect.map((pathService) => pathService.relative(rootDir, absolutePath))
-  )
 
 const toViteResult = (result: BabelTransformResult): ViteTransformResult | null => {
   if (result === null || result.code === null || result.code === undefined) {
