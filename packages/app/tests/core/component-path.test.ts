@@ -1,7 +1,12 @@
 import { describe, expect, it } from "@effect/vitest"
 import { Effect } from "effect"
 
-import { componentPathAttributeName, formatComponentPathValue, isJsxFile } from "../../src/core/component-path.js"
+import {
+  componentPathAttributeName,
+  formatComponentPathValue,
+  isHtmlTag,
+  isJsxFile
+} from "../../src/core/component-path.js"
 
 describe("component-path", () => {
   it.effect("exposes the path attribute name", () =>
@@ -21,4 +26,55 @@ describe("component-path", () => {
       expect(isJsxFile("src/App.jsx?import")).toBe(true)
       expect(isJsxFile("src/App.ts")).toBe(false)
     }))
+
+  describe("isHtmlTag", () => {
+    // CHANGE: add unit tests for isHtmlTag predicate.
+    // WHY: ensure correct classification of HTML vs React Component elements.
+    // QUOTE(TZ): "Есть тесты на <div /> и <MyComponent /> под разными настройками."
+    // REF: issue-23
+    // SOURCE: https://github.com/ProverCoderAI/component-tagger/issues/23
+    // FORMAT THEOREM: ∀ name: isHtmlTag(name) ↔ name[0] ∈ [a-z]
+    // PURITY: CORE
+    // EFFECT: n/a
+    // INVARIANT: predicate correctly classifies HTML vs Component elements
+    // COMPLEXITY: O(1)/O(1)
+
+    it.effect("returns true for lowercase HTML tags", () =>
+      Effect.sync(() => {
+        expect(isHtmlTag("div")).toBe(true)
+        expect(isHtmlTag("h1")).toBe(true)
+        expect(isHtmlTag("span")).toBe(true)
+        expect(isHtmlTag("p")).toBe(true)
+        expect(isHtmlTag("main")).toBe(true)
+        expect(isHtmlTag("article")).toBe(true)
+      }))
+
+    it.effect("returns false for PascalCase React Components", () =>
+      Effect.sync(() => {
+        expect(isHtmlTag("MyComponent")).toBe(false)
+        expect(isHtmlTag("Route")).toBe(false)
+        expect(isHtmlTag("App")).toBe(false)
+        expect(isHtmlTag("Button")).toBe(false)
+      }))
+
+    it.effect("returns false for empty string", () =>
+      Effect.sync(() => {
+        expect(isHtmlTag("")).toBe(false)
+      }))
+
+    it.effect("returns false for strings starting with non-letter characters", () =>
+      Effect.sync(() => {
+        expect(isHtmlTag("123div")).toBe(false)
+        expect(isHtmlTag("_component")).toBe(false)
+        expect(isHtmlTag("$button")).toBe(false)
+      }))
+
+    it.effect("handles single-character element names", () =>
+      Effect.sync(() => {
+        expect(isHtmlTag("a")).toBe(true)
+        expect(isHtmlTag("A")).toBe(false)
+        expect(isHtmlTag("b")).toBe(true)
+        expect(isHtmlTag("B")).toBe(false)
+      }))
+  })
 })

@@ -8,13 +8,15 @@
 // EFFECT: n/a
 // INVARIANT: exports remain stable for consumers
 // COMPLEXITY: O(1)/O(1)
-export { componentPathAttributeName, formatComponentPathValue, isJsxFile } from "./core/component-path.js"
+export { componentPathAttributeName, formatComponentPathValue, isHtmlTag, isJsxFile } from "./core/component-path.js"
 export {
   attrExists,
   createJsxTaggerVisitor,
   createPathAttribute,
   type JsxTaggerContext,
-  processJsxElement
+  type JsxTaggerOptions,
+  processJsxElement,
+  shouldTagElement
 } from "./core/jsx-tagger.js"
 export { componentTaggerBabelPlugin, type ComponentTaggerBabelPluginOptions } from "./shell/babel-plugin.js"
 export { componentTagger } from "./shell/component-tagger.js"

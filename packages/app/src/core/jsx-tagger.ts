@@ -1,6 +1,33 @@
 import type { types as t, Visitor } from "@babel/core"
 
-import { componentPathAttributeName, formatComponentPathValue } from "./component-path.js"
+import { componentPathAttributeName, formatComponentPathValue, isHtmlTag } from "./component-path.js"
+
+/**
+ * Configuration options for JSX tagging behavior.
+ *
+ * @pure true
+ */
+// CHANGE: add configuration type for tagging scope control.
+// WHY: enable flexible choice between DOM-only tagging vs all JSX elements.
+// QUOTE(TZ): "Если нужно гибко — добавить опцию tagComponents?: boolean (default на твоё усмотрение)."
+// REF: issue-23
+// SOURCE: https://github.com/ProverCoderAI/component-tagger/issues/23
+// FORMAT THEOREM: ∀ config ∈ JsxTaggerOptions: config.tagComponents ∈ {true, false, undefined}
+// PURITY: CORE
+// EFFECT: n/a
+// INVARIANT: configuration is immutable
+// COMPLEXITY: O(1)/O(1)
+export type JsxTaggerOptions = {
+  /**
+   * Whether to tag React Components (PascalCase elements) in addition to HTML tags.
+   * - true: Tag both HTML tags (<div>) and React Components (<MyComponent>)
+   * - false: Tag only HTML tags (<div>), skip React Components (<MyComponent>)
+   * - undefined/not provided: Defaults to true (tag everything)
+   *
+   * @default true
+   */
+  readonly tagComponents?: boolean | undefined
+}
 
 /**
  * Context required for JSX tagging.
@@ -12,6 +39,10 @@ export type JsxTaggerContext = {
    * Relative file path from the project root.
    */
   readonly relativeFilename: string
+  /**
+   * Configuration options for tagging behavior.
+   */
+  readonly options?: JsxTaggerOptions | undefined
 }
 
 /**
@@ -37,6 +68,63 @@ export const attrExists = (node: t.JSXOpeningElement, attrName: string, types: t
   node.attributes.some(
     (attr) => types.isJSXAttribute(attr) && types.isJSXIdentifier(attr.name, { name: attrName })
   )
+
+/**
+ * Determines whether a JSX element should be tagged based on configuration.
+ *
+ * @param node - JSX opening element to check.
+ * @param options - Tagging configuration options.
+ * @param types - Babel types module.
+ * @returns true if element should be tagged, false otherwise.
+ *
+ * @pure true
+ * @invariant HTML tags are always tagged regardless of options
+ * @invariant React Components are tagged only when tagComponents !== false
+ * @complexity O(1)
+ */
+// CHANGE: add pure predicate for tagging eligibility.
+// WHY: implement configurable tagging scope as per issue requirements.
+// QUOTE(TZ): "Определиться: метить только lowercase-теги (div, h1) или вообще всё (MyComponent, Route тоже)."
+// QUOTE(TZ): "(МЕтить надо всё)" - default should tag everything
+// REF: issue-23
+// SOURCE: https://github.com/ProverCoderAI/component-tagger/issues/23
+// FORMAT THEOREM: ∀ elem ∈ JSX: shouldTagElement(elem, opts) = isHtml(elem) ∨ (opts.tagComponents ≠ false)
+// PURITY: CORE
+// EFFECT: n/a
+// INVARIANT: ∀ html ∈ HTML: shouldTagElement(html, _) = true
+// INVARIANT: ∀ comp ∈ Component: shouldTagElement(comp, {tagComponents: false}) = false
+// INVARIANT: ∀ comp ∈ Component: shouldTagElement(comp, {tagComponents: true}) = true
+// COMPLEXITY: O(1)/O(1)
+export const shouldTagElement = (
+  node: t.JSXOpeningElement,
+  options: JsxTaggerOptions | undefined,
+  types: typeof t
+): boolean => {
+  // Extract element name
+  let elementName: string
+  if (types.isJSXIdentifier(node.name)) {
+    elementName = node.name.name
+  } else if (types.isJSXMemberExpression(node.name)) {
+    // For JSXMemberExpression like <Foo.Bar>, we don't tag (not a simple component)
+    return false
+  } else if (types.isJSXNamespacedName(node.name)) {
+    // For JSXNamespacedName like <svg:path>, treat namespace as lowercase
+    elementName = node.name.namespace.name
+  } else {
+    // Unknown node type, skip
+    return false
+  }
+
+  // Always tag HTML elements (lowercase)
+  if (isHtmlTag(elementName)) {
+    return true
+  }
+
+  // For React Components (PascalCase), check tagComponents option
+  // Default: true (tag everything, as per issue comment)
+  const tagComponents = options?.tagComponents ?? true
+  return tagComponents
+}
 
 /**
  * Creates a JSX attribute with the component path value.
@@ -76,19 +164,22 @@ export const createPathAttribute = (
  * Both the Vite plugin and standalone Babel plugin use this function.
  *
  * @param node - JSX opening element to process.
- * @param context - Tagging context with relative filename.
+ * @param context - Tagging context with relative filename and options.
  * @param types - Babel types module.
  * @returns true if attribute was added, false if skipped.
  *
  * @pure false (mutates node)
  * @invariant each JSX element has at most one path attribute after processing
+ * @invariant HTML elements are always tagged when eligible
+ * @invariant React Components are tagged based on options.tagComponents
  * @complexity O(n) where n = number of existing attributes
  */
-// CHANGE: extract unified JSX element processing logic.
-// WHY: satisfy user request for single business logic shared by Vite and Babel.
+// CHANGE: extract unified JSX element processing logic with configurable scope.
+// WHY: satisfy user request for single business logic shared by Vite and Babel + configurable tagging.
 // QUOTE(TZ): "А ты можешь сделать что бы бизнес логика оставалось одной? Ну типо переиспользуй код с vite версии на babel"
-// REF: issue-12-comment (unified interface request)
-// FORMAT THEOREM: ∀ jsx ∈ JSXOpeningElement: processElement(jsx) → tagged(jsx) ∨ skipped(jsx)
+// QUOTE(TZ): "Если нужно гибко — добавить опцию tagComponents?: boolean (default на твоё усмотрение)."
+// REF: issue-12-comment (unified interface request), issue-23 (configurable scope)
+// FORMAT THEOREM: ∀ jsx ∈ JSXOpeningElement: processElement(jsx, ctx) → (shouldTag(jsx, ctx.options) ∧ tagged(jsx)) ∨ skipped(jsx)
 // PURITY: SHELL (mutates AST)
 // EFFECT: AST mutation
 // INVARIANT: idempotent - processing same element twice produces same result
@@ -105,6 +196,11 @@ export const processJsxElement = (
 
   // Skip if already has path attribute (idempotency)
   if (attrExists(node, componentPathAttributeName, types)) {
+    return false
+  }
+
+  // Skip if element should not be tagged based on configuration
+  if (!shouldTagElement(node, context.options, types)) {
     return false
   }
 

@@ -61,3 +61,35 @@ export const formatComponentPathValue = (
   line: number,
   column: number
 ): string => `${relativeFilename}:${line}:${column}`
+
+/**
+ * Determines whether a JSX element name represents an HTML tag (lowercase) vs a React Component (PascalCase).
+ *
+ * @param elementName - The name of the JSX element (e.g., "div", "MyComponent").
+ * @returns true if the element is an HTML tag (starts with lowercase), false for React Components (starts with uppercase).
+ *
+ * @pure true
+ * @invariant isHtmlTag(name) = true <-> name[0] in [a-z]
+ * @complexity O(1) time / O(1) space
+ */
+// CHANGE: add pure predicate to distinguish HTML tags from React Components.
+// WHY: enable configurable tagging scope (DOM-only vs all JSX).
+// QUOTE(TZ): "Определиться: метить только lowercase-теги (div, h1) или вообще всё (MyComponent, Route тоже)."
+// REF: issue-23
+// SOURCE: https://github.com/ProverCoderAI/component-tagger/issues/23
+// FORMAT THEOREM: ∀ name ∈ JSXElementName: isHtmlTag(name) ↔ name[0] ∈ [a-z]
+// PURITY: CORE
+// EFFECT: n/a
+// INVARIANT: classification is deterministic and based only on first character
+// COMPLEXITY: O(1)/O(1)
+export const isHtmlTag = (elementName: string): boolean => {
+  if (elementName.length === 0) {
+    return false
+  }
+  const firstChar = elementName.codePointAt(0)
+  if (firstChar === undefined) {
+    return false
+  }
+  // Check if first character is lowercase ASCII letter (a-z: 97-122)
+  return firstChar >= 97 && firstChar <= 122
+}

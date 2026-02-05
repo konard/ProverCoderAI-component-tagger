@@ -4,7 +4,7 @@ import { Effect, pipe } from "effect"
 import type { PluginOption } from "vite"
 
 import { isJsxFile } from "../core/component-path.js"
-import { createJsxTaggerVisitor, type JsxTaggerContext } from "../core/jsx-tagger.js"
+import { createJsxTaggerVisitor, type JsxTaggerContext, type JsxTaggerOptions } from "../core/jsx-tagger.js"
 import { NodePathLayer, relativeFromRoot } from "../core/path-service.js"
 
 type BabelTransformResult = Awaited<ReturnType<typeof transformAsync>>
@@ -40,12 +40,13 @@ const toViteResult = (result: BabelTransformResult): ViteTransformResult | null 
   }
 }
 
-// CHANGE: use unified JSX tagger visitor from core module.
-// WHY: share business logic between Vite and Babel plugins as requested.
+// CHANGE: use unified JSX tagger visitor from core module with options support.
+// WHY: share business logic between Vite and Babel plugins as requested and propagate configuration.
 // QUOTE(TZ): "А ты можешь сделать что бы бизнес логика оставалось одной? Ну типо переиспользуй код с vite версии на babel"
-// REF: issue-12-comment (unified interface request)
+// QUOTE(TZ): "Если нужно гибко — добавить опцию tagComponents?: boolean"
+// REF: issue-12-comment (unified interface request), issue-23 (configurable scope)
 // SOURCE: n/a
-// FORMAT THEOREM: forall f in JSXOpeningElement: rendered(f) -> annotated(f)
+// FORMAT THEOREM: forall f in JSXOpeningElement: rendered(f) -> (shouldTag(f, opts) ∧ annotated(f)) ∨ skipped(f)
 // PURITY: SHELL
 // EFFECT: Babel AST transformation
 // INVARIANT: each JSX opening element has at most one path attribute
@@ -54,8 +55,8 @@ type ViteBabelState = {
   readonly context: JsxTaggerContext
 }
 
-const makeBabelTagger = (relativeFilename: string): PluginObj<ViteBabelState> => {
-  const context: JsxTaggerContext = { relativeFilename }
+const makeBabelTagger = (relativeFilename: string, options?: JsxTaggerOptions): PluginObj<ViteBabelState> => {
+  const context: JsxTaggerContext = { relativeFilename, options }
 
   return {
     name: "component-path-babel-tagger",
@@ -91,7 +92,8 @@ const makeBabelTagger = (relativeFilename: string): PluginObj<ViteBabelState> =>
 const runTransform = (
   code: string,
   id: string,
-  rootDir: string
+  rootDir: string,
+  options?: JsxTaggerOptions
 ): Effect.Effect<ViteTransformResult | null, ComponentTaggerError, Path> => {
   const cleanId = stripQuery(id)
 
@@ -108,7 +110,7 @@ const runTransform = (
               sourceType: "module",
               plugins: ["typescript", "jsx", "decorators-legacy"]
             },
-            plugins: [makeBabelTagger(relative)],
+            plugins: [makeBabelTagger(relative, options)],
             sourceMaps: true
           }),
         catch: (cause) => {
@@ -124,25 +126,29 @@ const runTransform = (
 /**
  * Creates a Vite plugin that injects a single component-path data attribute.
  *
+ * @param options - Optional configuration for tagging behavior.
  * @returns Vite PluginOption for pre-transform tagging.
  *
  * @pure false
  * @effect Babel transform through Effect
  * @invariant only JSX/TSX modules are transformed
+ * @invariant HTML tags are always tagged
+ * @invariant React Components are tagged based on options.tagComponents
  * @complexity O(n) time / O(1) space per JSX module
  * @throws Never - errors are typed and surfaced by Effect
  */
-// CHANGE: expose a Vite plugin that tags JSX with only path.
-// WHY: reduce attribute noise while keeping full path metadata.
+// CHANGE: expose a Vite plugin with configurable tagging scope.
+// WHY: enable users to control whether React Components are tagged in addition to HTML tags.
 // QUOTE(TZ): "Сам компонент должен быть в текущем app но вот что бы его протестировать надо создать ещё один проект который наш текущий апп будет подключать"
-// REF: user-2026-01-14-frontend-consumer
-// SOURCE: n/a
-// FORMAT THEOREM: forall id: isJsxFile(id) -> transform(id) adds component-path
+// QUOTE(TZ): "Если нужно гибко — добавить опцию tagComponents?: boolean (default на твоё усмотрение)."
+// REF: user-2026-01-14-frontend-consumer, issue-23 (configurable scope)
+// SOURCE: https://github.com/ProverCoderAI/component-tagger/issues/23
+// FORMAT THEOREM: forall id: isJsxFile(id) -> transform(id, opts) adds component-path per shouldTag predicate
 // PURITY: SHELL
 // EFFECT: Effect<ViteTransformResult | null, ComponentTaggerError, never>
 // INVARIANT: no duplicate path attributes
 // COMPLEXITY: O(n)/O(1)
-export const componentTagger = (): PluginOption => {
+export const componentTagger = (options?: JsxTaggerOptions): PluginOption => {
   let resolvedRoot = process.cwd()
 
   return {
@@ -157,7 +163,7 @@ export const componentTagger = (): PluginOption => {
         return null
       }
 
-      return Effect.runPromise(pipe(runTransform(code, id, resolvedRoot), Effect.provide(NodePathLayer)))
+      return Effect.runPromise(pipe(runTransform(code, id, resolvedRoot, options), Effect.provide(NodePathLayer)))
     }
   }
 }

@@ -1,13 +1,23 @@
 import { type PluginObj, types as t } from "@babel/core"
 
 import { isJsxFile } from "../core/component-path.js"
-import { createJsxTaggerVisitor, type JsxTaggerContext } from "../core/jsx-tagger.js"
+import { createJsxTaggerVisitor, type JsxTaggerContext, type JsxTaggerOptions } from "../core/jsx-tagger.js"
 import { computeRelativePath } from "../core/path-service.js"
 
 /**
  * Options for the component path Babel plugin.
  */
-export type ComponentTaggerBabelPluginOptions = {
+// CHANGE: extend Babel plugin options with tagComponents configuration.
+// WHY: enable users to control whether React Components are tagged.
+// QUOTE(TZ): "Если нужно гибко — добавить опцию tagComponents?: boolean (default на твоё усмотрение)."
+// REF: issue-23
+// SOURCE: https://github.com/ProverCoderAI/component-tagger/issues/23
+// FORMAT THEOREM: ∀ opts ∈ Options: opts extends JsxTaggerOptions
+// PURITY: CORE
+// EFFECT: n/a
+// INVARIANT: options are immutable and propagated to core logic
+// COMPLEXITY: O(1)/O(1)
+export type ComponentTaggerBabelPluginOptions = JsxTaggerOptions & {
   /**
    * Root directory for computing relative paths.
    * Defaults to process.cwd().
@@ -29,16 +39,18 @@ type BabelState = {
  *
  * @pure true
  * @invariant returns null when filename is undefined or not a JSX file
+ * @invariant context includes tagComponents option from state
  * @complexity O(n) where n = path length
  */
-// CHANGE: extract context creation for standalone Babel plugin.
-// WHY: enable unified visitor to work with Babel state.
+// CHANGE: extract context creation for standalone Babel plugin with options propagation.
+// WHY: enable unified visitor to work with Babel state and configurable tagging.
 // QUOTE(TZ): "А ты можешь сделать что бы бизнес логика оставалось одной?"
-// REF: issue-12-comment (unified interface request)
-// FORMAT THEOREM: ∀ state: getContext(state) = context ↔ isValidState(state)
+// QUOTE(TZ): "Если нужно гибко — добавить опцию tagComponents?: boolean"
+// REF: issue-12-comment (unified interface request), issue-23 (configurable scope)
+// FORMAT THEOREM: ∀ state: getContext(state) = context ↔ isValidState(state) ∧ context.options = state.opts
 // PURITY: CORE
 // EFFECT: n/a
-// INVARIANT: context contains valid relative path
+// INVARIANT: context contains valid relative path and propagates options
 // COMPLEXITY: O(n)/O(1)
 const getContextFromState = (state: BabelState): JsxTaggerContext | null => {
   const filename = state.filename
@@ -57,7 +69,12 @@ const getContextFromState = (state: BabelState): JsxTaggerContext | null => {
   const rootDir = state.opts?.rootDir ?? state.cwd ?? ""
   const relativeFilename = computeRelativePath(rootDir, filename)
 
-  return { relativeFilename }
+  // Extract tagging options from Babel plugin options
+  const options: JsxTaggerOptions | undefined = state.opts
+    ? { tagComponents: state.opts.tagComponents }
+    : undefined
+
+  return { relativeFilename, options }
 }
 
 /**
