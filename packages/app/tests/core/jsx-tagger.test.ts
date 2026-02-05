@@ -2,29 +2,40 @@ import { types as t } from "@babel/core"
 import { describe, expect, it } from "@effect/vitest"
 import { Effect } from "effect"
 
-import { type JsxTaggerContext, processJsxElement, shouldTagElement } from "../../src/core/jsx-tagger.js"
+import { attrExists, createPathAttribute, type JsxTaggerContext, processJsxElement, shouldTagElement } from "../../src/core/jsx-tagger.js"
+import {
+  createEmptyNodeWithLocation,
+  createNodeWithClassName,
+  createNodeWithClassNameAndLocation
+} from "./jsx-test-fixtures.js"
 
-/**
- * Unit tests for JSX tagging logic with configurable scope.
- *
- * CHANGE: add comprehensive tests for tagComponents configuration.
- * WHY: ensure correct behavior for DOM-only vs all JSX tagging modes.
- * QUOTE(TZ): "Есть тесты на <div /> и <MyComponent /> под разными настройками."
- * REF: issue-23
- * SOURCE: https://github.com/ProverCoderAI/component-tagger/issues/23
- * FORMAT THEOREM: ∀ elem, opts: shouldTagElement(elem, opts) satisfies configurable tagging invariants
- * PURITY: CORE (tests pure functions)
- * EFFECT: n/a
- * INVARIANT: tests verify mathematical properties of tagging predicates
- * COMPLEXITY: O(1) per test
- */
+// CHANGE: add comprehensive unit tests for jsx-tagger core functions
+// WHY: ensure mathematical invariants and idempotency properties are verified
+// QUOTE(ТЗ): "Unit: formatComponentPathValue, attrExists, processJsxElement (идемпотентность, пропуск без loc)"
+// REF: issue-25
+// FORMAT THEOREM: ∀ test ∈ Tests: test verifies declared invariant
+// PURITY: tests verify CORE purity and SHELL effects
+// INVARIANT: tests catch regressions in attribute handling and format
+// COMPLEXITY: O(1) per test case
 
-// Helper to create JSX identifier nodes
+// CHANGE: extract context factory to module scope per linter requirement
+// WHY: unicorn/consistent-function-scoping rule enforces scope consistency
+// REF: ESLint unicorn plugin rules
+const createTestContext = (filename = "src/App.tsx", attributeName = "data-path", options?: { tagComponents?: boolean }): JsxTaggerContext => ({
+  relativeFilename: filename,
+  attributeName,
+  ...(options !== undefined && { options })
+})
+
+// CHANGE: add helper for creating JSX elements for shouldTagElement tests
+// WHY: reduce duplication in configurable tagging tests
+// PURITY: CORE
+// INVARIANT: creates consistent test elements
+// COMPLEXITY: O(1)/O(1)
 const createJsxElement = (name: string): t.JSXOpeningElement => {
   return t.jsxOpeningElement(t.jsxIdentifier(name), [], false)
 }
 
-// Helper to create JSX element with location info for testing
 const createJsxElementWithLocation = (name: string, line: number, column: number): t.JSXOpeningElement => {
   const element = t.jsxOpeningElement(t.jsxIdentifier(name), [], false)
   element.loc = {
@@ -36,23 +47,6 @@ const createJsxElementWithLocation = (name: string, line: number, column: number
   return element
 }
 
-// CHANGE: extract common test component creation to reduce duplication
-// WHY: avoid duplicate code detection by linter across multiple test cases
-// PURITY: CORE
-// EFFECT: n/a
-// INVARIANT: creates consistent test fixtures
-// COMPLEXITY: O(1)/O(1)
-const createTestComponents = () => ({
-  myComponent: createJsxElement("MyComponent"),
-  route: createJsxElement("Route")
-})
-
-// CHANGE: extract namespaced element creation to reduce duplication
-// WHY: avoid duplicate code detection by linter across multiple test cases
-// PURITY: CORE
-// EFFECT: n/a
-// INVARIANT: creates consistent JSX namespaced elements for testing
-// COMPLEXITY: O(1)/O(1)
 const createNamespacedElement = (namespace: string, name: string): t.JSXOpeningElement => {
   return t.jsxOpeningElement(
     t.jsxNamespacedName(t.jsxIdentifier(namespace), t.jsxIdentifier(name)),
@@ -61,41 +55,117 @@ const createNamespacedElement = (namespace: string, name: string): t.JSXOpeningE
   )
 }
 
-// CHANGE: extract test context creation to reduce duplication
-// WHY: avoid duplicate code detection by linter across multiple test cases
-// PURITY: CORE
-// EFFECT: n/a
-// INVARIANT: creates consistent test contexts
-// COMPLEXITY: O(1)/O(1)
-const createTestContext = (
-  filename: string = "src/App.tsx",
-  attributeName: string = "data-path",
-  options?: { tagComponents?: boolean }
-): JsxTaggerContext => ({
-  relativeFilename: filename,
-  attributeName,
-  ...(options !== undefined && { options })
-})
-
-// CHANGE: extract common test assertion logic to reduce duplication
-// WHY: avoid duplicate code detection by linter when testing processJsxElement
-// PURITY: CORE
-// EFFECT: n/a
-// INVARIANT: performs consistent assertions on processJsxElement results
-// COMPLEXITY: O(1)/O(1)
-const assertProcessResult = (
-  element: t.JSXOpeningElement,
-  context: JsxTaggerContext,
-  expectedResult: boolean,
-  expectedAttributeCount: number
-) => {
-  const result = processJsxElement(element, context, t)
-  expect(result).toBe(expectedResult)
-  expect(element.attributes).toHaveLength(expectedAttributeCount)
-}
-
 describe("jsx-tagger", () => {
+  describe("attrExists", () => {
+    // FORMAT THEOREM: ∀ node, name: attrExists(node, name) ↔ ∃ attr ∈ node.attributes: attr.name = name
+    // INVARIANT: predicate returns true iff attribute with exact name exists
+    // COMPLEXITY: O(n) where n = number of attributes
+
+    it.effect("returns false when element has no attributes", () =>
+      Effect.sync(() => {
+        const node = t.jsxOpeningElement(t.jsxIdentifier("div"), [])
+        expect(attrExists(node, "data-path", t)).toBe(false)
+      }))
+
+    it.effect("returns false when attribute does not exist", () =>
+      Effect.sync(() => {
+        const node = createNodeWithClassName(t)
+        expect(attrExists(node, "data-path", t)).toBe(false)
+      }))
+
+    it.effect("returns true when attribute exists", () =>
+      Effect.sync(() => {
+        const node = t.jsxOpeningElement(t.jsxIdentifier("div"), [
+          t.jsxAttribute(t.jsxIdentifier("data-path"), t.stringLiteral("src/App.tsx:10:5"))
+        ])
+        expect(attrExists(node, "data-path", t)).toBe(true)
+      }))
+
+    it.effect("returns true when attribute exists among multiple attributes", () =>
+      Effect.sync(() => {
+        const node = t.jsxOpeningElement(t.jsxIdentifier("div"), [
+          t.jsxAttribute(t.jsxIdentifier("className"), t.stringLiteral("container")),
+          t.jsxAttribute(t.jsxIdentifier("data-path"), t.stringLiteral("src/App.tsx:10:5")),
+          t.jsxAttribute(t.jsxIdentifier("id"), t.stringLiteral("main"))
+        ])
+        expect(attrExists(node, "data-path", t)).toBe(true)
+      }))
+
+    it.effect("returns false for spread attributes", () =>
+      Effect.sync(() => {
+        const spreadAttr = t.jsxSpreadAttribute(t.identifier("props"))
+        const node = t.jsxOpeningElement(t.jsxIdentifier("div"), [spreadAttr])
+        expect(attrExists(node, "data-path", t)).toBe(false)
+      }))
+
+    it.effect("distinguishes between different attribute names", () =>
+      Effect.sync(() => {
+        const node = t.jsxOpeningElement(t.jsxIdentifier("div"), [
+          t.jsxAttribute(t.jsxIdentifier("data-path"), t.stringLiteral("value"))
+        ])
+        expect(attrExists(node, "path", t)).toBe(false)
+        expect(attrExists(node, "data-path", t)).toBe(true)
+      }))
+  })
+
+  describe("createPathAttribute", () => {
+    // FORMAT THEOREM: ∀ f, l, c: createPathAttribute(f, l, c) = JSXAttribute(path, f:l:c)
+    // INVARIANT: output format is always path:line:column
+    // COMPLEXITY: O(1)/O(1)
+
+    it.effect("creates JSX attribute with correct format", () =>
+      Effect.sync(() => {
+        const attr = createPathAttribute("data-path", "src/App.tsx", 10, 5, t)
+
+        expect(t.isJSXAttribute(attr)).toBe(true)
+        expect(t.isJSXIdentifier(attr.name)).toBe(true)
+        expect(attr.name.name).toBe("data-path")
+        expect(t.isStringLiteral(attr.value)).toBe(true)
+        if (t.isStringLiteral(attr.value)) {
+          expect(attr.value.value).toBe("src/App.tsx:10:5")
+        }
+      }))
+
+    it.effect("handles nested directory paths", () =>
+      Effect.sync(() => {
+        const attr = createPathAttribute("data-path", "src/components/ui/Button.tsx", 42, 8, t)
+
+        if (t.isStringLiteral(attr.value)) {
+          expect(attr.value.value).toBe("src/components/ui/Button.tsx:42:8")
+        }
+      }))
+
+    it.effect("handles line 1 and column 0", () =>
+      Effect.sync(() => {
+        const attr = createPathAttribute("data-path", "index.tsx", 1, 0, t)
+
+        if (t.isStringLiteral(attr.value)) {
+          expect(attr.value.value).toBe("index.tsx:1:0")
+        }
+      }))
+
+    it.effect("handles large line and column numbers", () =>
+      Effect.sync(() => {
+        const attr = createPathAttribute("data-path", "src/LargeFile.tsx", 9999, 999, t)
+
+        if (t.isStringLiteral(attr.value)) {
+          expect(attr.value.value).toBe("src/LargeFile.tsx:9999:999")
+        }
+      }))
+  })
+
   describe("shouldTagElement", () => {
+    // CHANGE: add comprehensive tests for tagComponents configuration.
+    // WHY: ensure correct behavior for DOM-only vs all JSX tagging modes.
+    // QUOTE(TZ): "Есть тесты на <div /> и <MyComponent /> под разными настройками."
+    // REF: issue-23
+    // SOURCE: https://github.com/ProverCoderAI/component-tagger/issues/23
+    // FORMAT THEOREM: ∀ elem, opts: shouldTagElement(elem, opts) satisfies configurable tagging invariants
+    // PURITY: CORE (tests pure functions)
+    // EFFECT: n/a
+    // INVARIANT: tests verify mathematical properties of tagging predicates
+    // COMPLEXITY: O(1) per test
+
     describe("HTML tags (lowercase)", () => {
       it.effect("always tags HTML elements regardless of options", () =>
         Effect.sync(() => {
@@ -123,7 +193,8 @@ describe("jsx-tagger", () => {
     describe("React Components (PascalCase)", () => {
       it.effect("tags Components when tagComponents is true", () =>
         Effect.sync(() => {
-          const { myComponent, route } = createTestComponents()
+          const myComponent = createJsxElement("MyComponent")
+          const route = createJsxElement("Route")
 
           expect(shouldTagElement(myComponent, { tagComponents: true }, t)).toBe(true)
           expect(shouldTagElement(route, { tagComponents: true }, t)).toBe(true)
@@ -131,7 +202,8 @@ describe("jsx-tagger", () => {
 
       it.effect("skips Components when tagComponents is false", () =>
         Effect.sync(() => {
-          const { myComponent, route } = createTestComponents()
+          const myComponent = createJsxElement("MyComponent")
+          const route = createJsxElement("Route")
 
           expect(shouldTagElement(myComponent, { tagComponents: false }, t)).toBe(false)
           expect(shouldTagElement(route, { tagComponents: false }, t)).toBe(false)
@@ -139,7 +211,8 @@ describe("jsx-tagger", () => {
 
       it.effect("tags Components by default (undefined options)", () =>
         Effect.sync(() => {
-          const { myComponent, route } = createTestComponents()
+          const myComponent = createJsxElement("MyComponent")
+          const route = createJsxElement("Route")
 
           // Default behavior: tag everything
           expect(shouldTagElement(myComponent, undefined, t)).toBe(true)
@@ -148,7 +221,8 @@ describe("jsx-tagger", () => {
 
       it.effect("tags Components by default (empty options object)", () =>
         Effect.sync(() => {
-          const { myComponent, route } = createTestComponents()
+          const myComponent = createJsxElement("MyComponent")
+          const route = createJsxElement("Route")
 
           expect(shouldTagElement(myComponent, {}, t)).toBe(true)
           expect(shouldTagElement(route, {}, t)).toBe(true)
@@ -191,6 +265,130 @@ describe("jsx-tagger", () => {
   })
 
   describe("processJsxElement", () => {
+    // FORMAT THEOREM: ∀ jsx ∈ JSXOpeningElement: processElement(jsx) → tagged(jsx) ∨ skipped(jsx)
+    // INVARIANT: idempotent - processing same element twice produces same result
+    // INVARIANT: each JSX element has at most one path attribute after processing
+    // COMPLEXITY: O(n)/O(1) where n = number of existing attributes
+
+    it.effect("adds path attribute when element has no attributes", () =>
+      Effect.sync(() => {
+        const node = createEmptyNodeWithLocation(t)
+        const result = processJsxElement(node, createTestContext(), t)
+
+        expect(result).toBe(true)
+        expect(node.attributes.length).toBe(1)
+        expect(attrExists(node, "data-path", t)).toBe(true)
+
+        const pathAttr = node.attributes[0]
+        if (t.isJSXAttribute(pathAttr) && t.isStringLiteral(pathAttr.value)) {
+          expect(pathAttr.value.value).toBe("src/App.tsx:10:5")
+        }
+      }))
+
+    it.effect("adds path attribute when element has other attributes", () =>
+      Effect.sync(() => {
+        const node = createNodeWithClassNameAndLocation(t)
+        const result = processJsxElement(node, createTestContext(), t)
+
+        expect(result).toBe(true)
+        expect(node.attributes.length).toBe(2)
+        expect(attrExists(node, "data-path", t)).toBe(true)
+      }))
+
+    it.effect("skips element without location info (loc === null)", () =>
+      Effect.sync(() => {
+        const node = t.jsxOpeningElement(t.jsxIdentifier("div"), [])
+        node.loc = null
+
+        const result = processJsxElement(node, createTestContext(), t)
+
+        expect(result).toBe(false)
+        expect(node.attributes.length).toBe(0)
+        expect(attrExists(node, "data-path", t)).toBe(false)
+      }))
+
+    it.effect("skips element that already has path attribute (idempotency)", () =>
+      Effect.sync(() => {
+        const node = t.jsxOpeningElement(t.jsxIdentifier("div"), [
+          t.jsxAttribute(t.jsxIdentifier("data-path"), t.stringLiteral("src/Old.tsx:5:0"))
+        ])
+        node.loc = {
+          start: { line: 20, column: 3, index: 0 },
+          end: { line: 20, column: 15, index: 0 },
+          filename: "src/App.tsx",
+          identifierName: undefined
+        }
+
+        const result = processJsxElement(node, createTestContext(), t)
+
+        expect(result).toBe(false)
+        expect(node.attributes.length).toBe(1) // No new attribute added
+        const pathAttr = node.attributes[0]
+        if (t.isJSXAttribute(pathAttr) && t.isStringLiteral(pathAttr.value)) {
+          expect(pathAttr.value.value).toBe("src/Old.tsx:5:0") // Original value preserved
+        }
+      }))
+
+    it.effect("is truly idempotent - processing twice produces same result", () =>
+      Effect.sync(() => {
+        const node = createEmptyNodeWithLocation(t)
+
+        // First processing
+        const result1 = processJsxElement(node, createTestContext(), t)
+        expect(result1).toBe(true)
+        const attributesAfterFirst = node.attributes.length
+
+        // Second processing (should be no-op)
+        const result2 = processJsxElement(node, createTestContext(), t)
+        expect(result2).toBe(false)
+        expect(node.attributes.length).toBe(attributesAfterFirst)
+      }))
+
+    it.effect("uses context filename for path value", () =>
+      Effect.sync(() => {
+        const node = t.jsxOpeningElement(t.jsxIdentifier("button"), [])
+        node.loc = {
+          start: { line: 7, column: 12, index: 0 },
+          end: { line: 7, column: 20, index: 0 },
+          filename: "different.tsx",
+          identifierName: undefined
+        }
+
+        const context = createTestContext("src/components/Button.tsx")
+        processJsxElement(node, context, t)
+
+        const pathAttr = node.attributes.find(
+          (attr) => t.isJSXAttribute(attr) && t.isJSXIdentifier(attr.name, { name: "data-path" })
+        )
+        expect(pathAttr).toBeDefined()
+        if (pathAttr && t.isJSXAttribute(pathAttr) && t.isStringLiteral(pathAttr.value)) {
+          expect(pathAttr.value.value).toBe("src/components/Button.tsx:7:12")
+        }
+      }))
+
+    it.effect("preserves existing attributes when adding path", () =>
+      Effect.sync(() => {
+        const node = t.jsxOpeningElement(t.jsxIdentifier("div"), [
+          t.jsxAttribute(t.jsxIdentifier("className"), t.stringLiteral("container")),
+          t.jsxAttribute(t.jsxIdentifier("id"), t.stringLiteral("main")),
+          t.jsxSpreadAttribute(t.identifier("props"))
+        ])
+        node.loc = {
+          start: { line: 25, column: 0, index: 0 },
+          end: { line: 25, column: 30, index: 0 },
+          filename: "src/App.tsx",
+          identifierName: undefined
+        }
+
+        processJsxElement(node, createTestContext(), t)
+
+        expect(node.attributes.length).toBe(4)
+        // Verify original attributes still exist
+        expect(attrExists(node, "className", t)).toBe(true)
+        expect(attrExists(node, "id", t)).toBe(true)
+        expect(attrExists(node, "data-path", t)).toBe(true)
+      }))
+
     it.effect("tags HTML elements with default options", () =>
       Effect.sync(() => {
         const divElement = createJsxElementWithLocation("div", 1, 0)
@@ -216,45 +414,30 @@ describe("jsx-tagger", () => {
       Effect.sync(() => {
         const myComponent = createJsxElementWithLocation("MyComponent", 5, 2)
         const context = createTestContext("src/App.tsx", "data-path", { tagComponents: true })
-        assertProcessResult(myComponent, context, true, 1)
+
+        const result = processJsxElement(myComponent, context, t)
+        expect(result).toBe(true)
+        expect(myComponent.attributes).toHaveLength(1)
       }))
 
     it.effect("skips React Components with tagComponents: false", () =>
       Effect.sync(() => {
         const myComponent = createJsxElementWithLocation("MyComponent", 5, 2)
         const context = createTestContext("src/App.tsx", "data-path", { tagComponents: false })
-        assertProcessResult(myComponent, context, false, 0)
+
+        const result = processJsxElement(myComponent, context, t)
+        expect(result).toBe(false)
+        expect(myComponent.attributes).toHaveLength(0)
       }))
 
     it.effect("tags React Components by default (no options)", () =>
       Effect.sync(() => {
         const myComponent = createJsxElementWithLocation("Route", 10, 4)
         const context = createTestContext("src/Routes.tsx")
-        assertProcessResult(myComponent, context, true, 1)
-      }))
 
-    it.effect("is idempotent - does not add duplicate path attributes", () =>
-      Effect.sync(() => {
-        const divElement = createJsxElementWithLocation("div", 1, 0)
-        const context = createTestContext()
-
-        // First call should add attribute
-        const result1 = processJsxElement(divElement, context, t)
-        expect(result1).toBe(true)
-        expect(divElement.attributes).toHaveLength(1)
-
-        // Second call should skip (idempotency)
-        const result2 = processJsxElement(divElement, context, t)
-        expect(result2).toBe(false)
-        expect(divElement.attributes).toHaveLength(1)
-      }))
-
-    it.effect("skips elements without location info", () =>
-      Effect.sync(() => {
-        const divElement = t.jsxOpeningElement(t.jsxIdentifier("div"), [], false)
-        // No loc property set
-        const context = createTestContext()
-        assertProcessResult(divElement, context, false, 0)
+        const result = processJsxElement(myComponent, context, t)
+        expect(result).toBe(true)
+        expect(myComponent.attributes).toHaveLength(1)
       }))
   })
 })

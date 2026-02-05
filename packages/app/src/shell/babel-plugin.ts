@@ -1,6 +1,6 @@
 import { type PluginObj, types as t } from "@babel/core"
 
-import { componentPathAttributeName, isJsxFile } from "../core/component-path.js"
+import { babelPluginName, componentPathAttributeName, isJsxFile } from "../core/component-path.js"
 import { createJsxTaggerVisitor, type JsxTaggerContext, type JsxTaggerOptions } from "../core/jsx-tagger.js"
 import { computeRelativePath } from "../core/path-service.js"
 
@@ -144,7 +144,7 @@ const getContextFromState = (state: BabelState): JsxTaggerContext | null => {
 // INVARIANT: each JSX opening element has at most one path attribute
 // COMPLEXITY: O(n)/O(1)
 export const componentTaggerBabelPlugin = (): PluginObj<BabelState> => ({
-  name: "component-path-babel-tagger",
+  name: babelPluginName,
   visitor: createJsxTaggerVisitor<BabelState>(getContextFromState, t)
 })
 

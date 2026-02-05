@@ -1,5 +1,17 @@
 const jsxFilePattern = /\.(tsx|jsx)(\?.*)?$/u
 
+// CHANGE: define canonical Babel plugin name for component path tagging.
+// WHY: eliminate magic string duplication across plugin implementations.
+// QUOTE(ТЗ): "Вынести строки имён плагинов в константы (чтобы не дублировать \"component-path-babel-tagger\")."
+// REF: issue-19
+// SOURCE: n/a
+// FORMAT THEOREM: forall p in PluginName: p = "component-path-babel-tagger"
+// PURITY: CORE
+// EFFECT: n/a
+// INVARIANT: plugin name remains stable across all implementations
+// COMPLEXITY: O(1)/O(1)
+export const babelPluginName = "component-path-babel-tagger"
+
 /**
  * Normalizes a module ID by stripping query parameters.
  *
