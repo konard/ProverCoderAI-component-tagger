@@ -1,7 +1,8 @@
 import { type PluginObj, types as t } from "@babel/core"
 import path from "node:path"
 
-import { componentPathAttributeName, formatComponentPathValue, isJsxFile } from "../core/component-path.js"
+import { isJsxFile } from "../core/component-path.js"
+import { createJsxTaggerVisitor, type JsxTaggerContext } from "../core/jsx-tagger.js"
 
 /**
  * Options for the component path Babel plugin.
@@ -20,16 +21,53 @@ type BabelState = {
   readonly opts?: ComponentTaggerBabelPluginOptions
 }
 
-const attrExists = (node: t.JSXOpeningElement, attrName: string): boolean =>
-  node.attributes.some(
-    (attr) => t.isJSXAttribute(attr) && t.isJSXIdentifier(attr.name, { name: attrName })
-  )
+/**
+ * Creates context for JSX tagging from Babel state.
+ *
+ * @param state - Babel plugin state containing filename and options.
+ * @returns JsxTaggerContext or null if context cannot be created.
+ *
+ * @pure true
+ * @invariant returns null when filename is undefined or not a JSX file
+ * @complexity O(n) where n = path length
+ */
+// CHANGE: extract context creation for standalone Babel plugin.
+// WHY: enable unified visitor to work with Babel state.
+// QUOTE(TZ): "А ты можешь сделать что бы бизнес логика оставалось одной?"
+// REF: issue-12-comment (unified interface request)
+// FORMAT THEOREM: ∀ state: getContext(state) = context ↔ isValidState(state)
+// PURITY: CORE
+// EFFECT: n/a
+// INVARIANT: context contains valid relative path
+// COMPLEXITY: O(n)/O(1)
+const getContextFromState = (state: BabelState): JsxTaggerContext | null => {
+  const filename = state.filename
+
+  // Skip if no filename
+  if (filename === undefined) {
+    return null
+  }
+
+  // Skip if not a JSX/TSX file
+  if (!isJsxFile(filename)) {
+    return null
+  }
+
+  // Compute relative path from root
+  const rootDir = state.opts?.rootDir ?? state.cwd ?? process.cwd()
+  const relativeFilename = path.relative(rootDir, filename)
+
+  return { relativeFilename }
+}
 
 /**
  * Creates a Babel plugin that injects component path attributes into JSX elements.
  *
  * This plugin is designed to be used standalone with build tools that support
  * Babel plugins directly (e.g., Next.js via .babelrc).
+ *
+ * Uses the unified JSX tagger core that is shared with the Vite plugin,
+ * ensuring consistent behavior across both build tools.
  *
  * @returns Babel plugin object
  *
@@ -57,10 +95,10 @@ const attrExists = (node: t.JSXOpeningElement, attrName: string): boolean =>
  *   }
  * }
  */
-// CHANGE: extract standalone Babel plugin from Vite integration.
-// WHY: allow direct Babel usage for Next.js and other non-Vite build tools.
-// QUOTE(TZ): "Создай новый проект типо packages/frontend только создай его для nextjs"
-// REF: issue-12
+// CHANGE: use unified JSX tagger visitor from core module.
+// WHY: share business logic between Vite and Babel plugins as requested.
+// QUOTE(TZ): "А ты можешь сделать что бы бизнес логика оставалось одной? Ну типо переиспользуй код с vite версии на babel. Сделай единный интерфейс для этого"
+// REF: issue-12-comment (unified interface request)
 // SOURCE: https://babeljs.io/docs/plugins
 // FORMAT THEOREM: forall jsx in JSXOpeningElement: transform(jsx) -> tagged(jsx, path)
 // PURITY: SHELL
@@ -69,43 +107,7 @@ const attrExists = (node: t.JSXOpeningElement, attrName: string): boolean =>
 // COMPLEXITY: O(n)/O(1)
 export const componentTaggerBabelPlugin = (): PluginObj<BabelState> => ({
   name: "component-path-babel-tagger",
-  visitor: {
-    JSXOpeningElement(nodePath, state) {
-      const { node } = nodePath
-      const filename = state.filename
-
-      // Skip if no filename
-      if (filename === undefined) {
-        return
-      }
-
-      // Skip if no location info
-      if (node.loc === null || node.loc === undefined) {
-        return
-      }
-
-      // Skip if not a JSX/TSX file
-      if (!isJsxFile(filename)) {
-        return
-      }
-
-      // Skip if already has path attribute
-      if (attrExists(node, componentPathAttributeName)) {
-        return
-      }
-
-      // Compute relative path from root
-      const rootDir = state.opts?.rootDir ?? state.cwd ?? process.cwd()
-      const relativeFilename = path.relative(rootDir, filename)
-
-      const { column, line } = node.loc.start
-      const value = formatComponentPathValue(relativeFilename, line, column)
-
-      node.attributes.push(
-        t.jsxAttribute(t.jsxIdentifier(componentPathAttributeName), t.stringLiteral(value))
-      )
-    }
-  }
+  visitor: createJsxTaggerVisitor<BabelState>(getContextFromState, t)
 })
 
 /**
