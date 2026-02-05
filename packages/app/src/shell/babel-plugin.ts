@@ -1,16 +1,17 @@
 import { type PluginObj, types as t } from "@babel/core"
 
-import { isJsxFile } from "../core/component-path.js"
+import { componentPathAttributeName, isJsxFile } from "../core/component-path.js"
 import { createJsxTaggerVisitor, type JsxTaggerContext, type JsxTaggerOptions } from "../core/jsx-tagger.js"
 import { computeRelativePath } from "../core/path-service.js"
 
 /**
  * Options for the component path Babel plugin.
  */
-// CHANGE: extend Babel plugin options with tagComponents configuration.
-// WHY: enable users to control whether React Components are tagged.
+// CHANGE: extend Babel plugin options with both attributeName and tagComponents configuration.
+// WHY: enable users to control attribute name and whether React Components are tagged.
 // QUOTE(TZ): "Если нужно гибко — добавить опцию tagComponents?: boolean (default на твоё усмотрение)."
-// REF: issue-23
+// QUOTE(issue-14): "Add option attributeName (default: data-path) for both plugins"
+// REF: issue-14, issue-23
 // SOURCE: https://github.com/ProverCoderAI/component-tagger/issues/23
 // FORMAT THEOREM: ∀ opts ∈ Options: opts extends JsxTaggerOptions
 // PURITY: CORE
@@ -23,6 +24,11 @@ export type ComponentTaggerBabelPluginOptions = JsxTaggerOptions & {
    * Defaults to process.cwd().
    */
   readonly rootDir?: string
+  /**
+   * Name of the attribute to add to JSX elements.
+   * Defaults to "data-path".
+   */
+  readonly attributeName?: string
 }
 
 type BabelState = {
@@ -39,18 +45,19 @@ type BabelState = {
  *
  * @pure true
  * @invariant returns null when filename is undefined or not a JSX file
- * @invariant context includes tagComponents option from state
+ * @invariant context includes both attributeName and tagComponents options from state
  * @complexity O(n) where n = path length
  */
-// CHANGE: extract context creation for standalone Babel plugin with options propagation.
-// WHY: enable unified visitor to work with Babel state and configurable tagging.
+// CHANGE: extract context creation for standalone Babel plugin with both attributeName and options propagation.
+// WHY: enable unified visitor to work with Babel state, custom attribute names, and configurable tagging.
 // QUOTE(TZ): "А ты можешь сделать что бы бизнес логика оставалось одной?"
 // QUOTE(TZ): "Если нужно гибко — добавить опцию tagComponents?: boolean"
-// REF: issue-12-comment (unified interface request), issue-23 (configurable scope)
-// FORMAT THEOREM: ∀ state: getContext(state) = context ↔ isValidState(state) ∧ context.options = state.opts
+// QUOTE(issue-14): "Add option attributeName (default: data-path) for both plugins"
+// REF: issue-12-comment (unified interface request), issue-14 (attributeName option), issue-23 (configurable scope)
+// FORMAT THEOREM: ∀ state: getContext(state) = context ↔ isValidState(state) ∧ context.attributeName = state.opts.attributeName ∧ context.options = state.opts
 // PURITY: CORE
 // EFFECT: n/a
-// INVARIANT: context contains valid relative path and propagates options
+// INVARIANT: context contains valid relative path, attribute name, and propagates options
 // COMPLEXITY: O(n)/O(1)
 const getContextFromState = (state: BabelState): JsxTaggerContext | null => {
   const filename = state.filename
@@ -66,15 +73,16 @@ const getContextFromState = (state: BabelState): JsxTaggerContext | null => {
   }
 
   // Compute relative path from root using Effect's Path service
-  const rootDir = state.opts?.rootDir ?? state.cwd ?? ""
+  const rootDir = state.opts?.rootDir ?? state.cwd ?? process.cwd()
   const relativeFilename = computeRelativePath(rootDir, filename)
+  const attributeName = state.opts?.attributeName ?? componentPathAttributeName
 
   // Extract tagging options from Babel plugin options
   const options: JsxTaggerOptions | undefined = state.opts
     ? { tagComponents: state.opts.tagComponents }
     : undefined
 
-  return { relativeFilename, options }
+  return { relativeFilename, attributeName, options }
 }
 
 /**
@@ -106,7 +114,7 @@ const getContextFromState = (state: BabelState): JsxTaggerContext | null => {
  *   "env": {
  *     "development": {
  *       "plugins": [
- *         ["@prover-coder-ai/component-tagger/babel", { "rootDir": "/custom/root" }]
+ *         ["@prover-coder-ai/component-tagger/babel", { "rootDir": "/custom/root", "attributeName": "data-path", "tagComponents": true }]
  *       ]
  *     }
  *   }

@@ -1,6 +1,6 @@
 import type { types as t, Visitor } from "@babel/core"
 
-import { componentPathAttributeName, formatComponentPathValue, isHtmlTag } from "./component-path.js"
+import { formatComponentPathValue, isHtmlTag } from "./component-path.js"
 
 /**
  * Configuration options for JSX tagging behavior.
@@ -39,6 +39,10 @@ export type JsxTaggerContext = {
    * Relative file path from the project root.
    */
   readonly relativeFilename: string
+  /**
+   * Name of the attribute to add (defaults to "data-path").
+   */
+  readonly attributeName: string
   /**
    * Configuration options for tagging behavior.
    */
@@ -129,6 +133,7 @@ export const shouldTagElement = (
 /**
  * Creates a JSX attribute with the component path value.
  *
+ * @param attributeName - Name of the attribute to create.
  * @param relativeFilename - Relative path to the file.
  * @param line - 1-based line number.
  * @param column - 0-based column number.
@@ -136,25 +141,26 @@ export const shouldTagElement = (
  * @returns JSX attribute node with the path value.
  *
  * @pure true
- * @invariant attribute name is always componentPathAttributeName
+ * @invariant attribute name matches the provided attributeName parameter
  * @complexity O(1)
  */
-// CHANGE: extract attribute creation as a pure factory.
-// WHY: single point for attribute creation ensures consistency.
-// REF: issue-12 (unified interface request)
-// FORMAT THEOREM: ∀ f, l, c: createPathAttribute(f, l, c) = JSXAttribute(path, f:l:c)
+// CHANGE: add attributeName parameter for configurable attribute names.
+// WHY: support customizable attribute names while maintaining default "data-path".
+// REF: issue-14 (add attributeName option)
+// FORMAT THEOREM: ∀ n, f, l, c: createPathAttribute(n, f, l, c) = JSXAttribute(n, f:l:c)
 // PURITY: CORE
 // EFFECT: n/a
-// INVARIANT: output format is always path:line:column
+// INVARIANT: output format is always path:line:column with configurable attribute name
 // COMPLEXITY: O(1)/O(1)
 export const createPathAttribute = (
+  attributeName: string,
   relativeFilename: string,
   line: number,
   column: number,
   types: typeof t
 ): t.JSXAttribute => {
   const value = formatComponentPathValue(relativeFilename, line, column)
-  return types.jsxAttribute(types.jsxIdentifier(componentPathAttributeName), types.stringLiteral(value))
+  return types.jsxAttribute(types.jsxIdentifier(attributeName), types.stringLiteral(value))
 }
 
 /**
@@ -164,21 +170,21 @@ export const createPathAttribute = (
  * Both the Vite plugin and standalone Babel plugin use this function.
  *
  * @param node - JSX opening element to process.
- * @param context - Tagging context with relative filename and options.
+ * @param context - Tagging context with relative filename, attribute name, and options.
  * @param types - Babel types module.
  * @returns true if attribute was added, false if skipped.
  *
  * @pure false (mutates node)
- * @invariant each JSX element has at most one path attribute after processing
+ * @invariant each JSX element has at most one instance of the specified attribute after processing
  * @invariant HTML elements are always tagged when eligible
  * @invariant React Components are tagged based on options.tagComponents
  * @complexity O(n) where n = number of existing attributes
  */
-// CHANGE: extract unified JSX element processing logic with configurable scope.
-// WHY: satisfy user request for single business logic shared by Vite and Babel + configurable tagging.
+// CHANGE: extract unified JSX element processing logic with configurable scope and attribute name.
+// WHY: satisfy user request for single business logic shared by Vite and Babel + configurable tagging + custom attribute names.
 // QUOTE(TZ): "А ты можешь сделать что бы бизнес логика оставалось одной? Ну типо переиспользуй код с vite версии на babel"
 // QUOTE(TZ): "Если нужно гибко — добавить опцию tagComponents?: boolean (default на твоё усмотрение)."
-// REF: issue-12-comment (unified interface request), issue-23 (configurable scope)
+// REF: issue-12-comment (unified interface request), issue-14 (attributeName option), issue-23 (configurable scope)
 // FORMAT THEOREM: ∀ jsx ∈ JSXOpeningElement: processElement(jsx, ctx) → (shouldTag(jsx, ctx.options) ∧ tagged(jsx)) ∨ skipped(jsx)
 // PURITY: SHELL (mutates AST)
 // EFFECT: AST mutation
@@ -194,8 +200,8 @@ export const processJsxElement = (
     return false
   }
 
-  // Skip if already has path attribute (idempotency)
-  if (attrExists(node, componentPathAttributeName, types)) {
+  // Skip if already has the specified attribute (idempotency)
+  if (attrExists(node, context.attributeName, types)) {
     return false
   }
 
@@ -205,7 +211,7 @@ export const processJsxElement = (
   }
 
   const { column, line } = node.loc.start
-  const attr = createPathAttribute(context.relativeFilename, line, column, types)
+  const attr = createPathAttribute(context.attributeName, context.relativeFilename, line, column, types)
 
   node.attributes.push(attr)
   return true

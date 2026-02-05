@@ -3,9 +3,31 @@ import type { Path } from "@effect/platform/Path"
 import { Effect, pipe } from "effect"
 import type { PluginOption } from "vite"
 
-import { isJsxFile } from "../core/component-path.js"
+import { componentPathAttributeName, isJsxFile, normalizeModuleId } from "../core/component-path.js"
 import { createJsxTaggerVisitor, type JsxTaggerContext, type JsxTaggerOptions } from "../core/jsx-tagger.js"
 import { NodePathLayer, relativeFromRoot } from "../core/path-service.js"
+
+/**
+ * Options for the component tagger Vite plugin.
+ */
+// CHANGE: extend Vite plugin options with both attributeName and tagComponents configuration.
+// WHY: enable users to control attribute name and whether React Components are tagged.
+// QUOTE(TZ): "Если нужно гибко — добавить опцию tagComponents?: boolean (default на твоё усмотрение)."
+// QUOTE(issue-14): "Add option attributeName (default: data-path) for both plugins"
+// REF: issue-14, issue-23
+// SOURCE: https://github.com/ProverCoderAI/component-tagger/issues/23
+// FORMAT THEOREM: ∀ opts ∈ ComponentTaggerOptions: opts extends JsxTaggerOptions
+// PURITY: CORE
+// EFFECT: n/a
+// INVARIANT: options are immutable and propagated to core logic
+// COMPLEXITY: O(1)/O(1)
+export type ComponentTaggerOptions = JsxTaggerOptions & {
+  /**
+   * Name of the attribute to add to JSX elements.
+   * Defaults to "data-path".
+   */
+  readonly attributeName?: string
+}
 
 type BabelTransformResult = Awaited<ReturnType<typeof transformAsync>>
 
@@ -22,11 +44,6 @@ class ComponentTaggerError extends Error {
   }
 }
 
-const stripQuery = (id: string): string => {
-  const queryIndex = id.indexOf("?")
-  return queryIndex === -1 ? id : id.slice(0, queryIndex)
-}
-
 const toViteResult = (result: BabelTransformResult): ViteTransformResult | null => {
   if (result === null || result.code === null || result.code === undefined) {
     return null
@@ -40,11 +57,11 @@ const toViteResult = (result: BabelTransformResult): ViteTransformResult | null 
   }
 }
 
-// CHANGE: use unified JSX tagger visitor from core module with options support.
+// CHANGE: use unified JSX tagger visitor from core module with both attributeName and options support.
 // WHY: share business logic between Vite and Babel plugins as requested and propagate configuration.
 // QUOTE(TZ): "А ты можешь сделать что бы бизнес логика оставалось одной? Ну типо переиспользуй код с vite версии на babel"
 // QUOTE(TZ): "Если нужно гибко — добавить опцию tagComponents?: boolean"
-// REF: issue-12-comment (unified interface request), issue-23 (configurable scope)
+// REF: issue-12-comment (unified interface request), issue-14 (attributeName option), issue-23 (configurable scope)
 // SOURCE: n/a
 // FORMAT THEOREM: forall f in JSXOpeningElement: rendered(f) -> (shouldTag(f, opts) ∧ annotated(f)) ∨ skipped(f)
 // PURITY: SHELL
@@ -55,8 +72,12 @@ type ViteBabelState = {
   readonly context: JsxTaggerContext
 }
 
-const makeBabelTagger = (relativeFilename: string, options?: JsxTaggerOptions): PluginObj<ViteBabelState> => {
-  const context: JsxTaggerContext = { relativeFilename, options }
+const makeBabelTagger = (
+  relativeFilename: string,
+  attributeName: string,
+  options?: JsxTaggerOptions
+): PluginObj<ViteBabelState> => {
+  const context: JsxTaggerContext = { relativeFilename, attributeName, options }
 
   return {
     name: "component-path-babel-tagger",
@@ -93,9 +114,10 @@ const runTransform = (
   code: string,
   id: string,
   rootDir: string,
+  attributeName: string,
   options?: JsxTaggerOptions
 ): Effect.Effect<ViteTransformResult | null, ComponentTaggerError, Path> => {
-  const cleanId = stripQuery(id)
+  const cleanId = normalizeModuleId(id)
 
   return pipe(
     relativeFromRoot(rootDir, cleanId),
@@ -110,7 +132,7 @@ const runTransform = (
               sourceType: "module",
               plugins: ["typescript", "jsx", "decorators-legacy"]
             },
-            plugins: [makeBabelTagger(relative, options)],
+            plugins: [makeBabelTagger(relative, attributeName, options)],
             sourceMaps: true
           }),
         catch: (cause) => {
@@ -126,7 +148,7 @@ const runTransform = (
 /**
  * Creates a Vite plugin that injects a single component-path data attribute.
  *
- * @param options - Optional configuration for tagging behavior.
+ * @param options - Configuration options for the plugin (attributeName and tagComponents).
  * @returns Vite PluginOption for pre-transform tagging.
  *
  * @pure false
@@ -137,18 +159,23 @@ const runTransform = (
  * @complexity O(n) time / O(1) space per JSX module
  * @throws Never - errors are typed and surfaced by Effect
  */
-// CHANGE: expose a Vite plugin with configurable tagging scope.
-// WHY: enable users to control whether React Components are tagged in addition to HTML tags.
+// CHANGE: expose a Vite plugin with configurable tagging scope and attribute name.
+// WHY: enable users to control attribute name and whether React Components are tagged in addition to HTML tags.
 // QUOTE(TZ): "Сам компонент должен быть в текущем app но вот что бы его протестировать надо создать ещё один проект который наш текущий апп будет подключать"
 // QUOTE(TZ): "Если нужно гибко — добавить опцию tagComponents?: boolean (default на твоё усмотрение)."
-// REF: user-2026-01-14-frontend-consumer, issue-23 (configurable scope)
+// QUOTE(issue-14): "Add option attributeName (default: data-path) for both plugins"
+// REF: user-2026-01-14-frontend-consumer, issue-14 (attributeName option), issue-23 (configurable scope)
 // SOURCE: https://github.com/ProverCoderAI/component-tagger/issues/23
 // FORMAT THEOREM: forall id: isJsxFile(id) -> transform(id, opts) adds component-path per shouldTag predicate
 // PURITY: SHELL
 // EFFECT: Effect<ViteTransformResult | null, ComponentTaggerError, never>
-// INVARIANT: no duplicate path attributes
+// INVARIANT: no duplicate attributes with the same name
 // COMPLEXITY: O(n)/O(1)
-export const componentTagger = (options?: JsxTaggerOptions): PluginOption => {
+export const componentTagger = (options?: ComponentTaggerOptions): PluginOption => {
+  const attributeName = options?.attributeName ?? componentPathAttributeName
+  const jsxOptions: JsxTaggerOptions | undefined = options
+    ? { tagComponents: options.tagComponents }
+    : undefined
   let resolvedRoot = process.cwd()
 
   return {
@@ -163,7 +190,7 @@ export const componentTagger = (options?: JsxTaggerOptions): PluginOption => {
         return null
       }
 
-      return Effect.runPromise(pipe(runTransform(code, id, resolvedRoot, options), Effect.provide(NodePathLayer)))
+      return Effect.runPromise(pipe(runTransform(code, id, resolvedRoot, attributeName, jsxOptions), Effect.provide(NodePathLayer)))
     }
   }
 }
