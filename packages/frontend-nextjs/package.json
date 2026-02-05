@@ -1,0 +1,27 @@
+{
+  "name": "@component-tagger/frontend-nextjs",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --port 4174",
+    "build": "next build",
+    "start": "next start --port 4174",
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@prover-coder-ai/component-tagger": "workspace:*",
+    "next": "^15.4.0-canary.116",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.28.6",
+    "@playwright/test": "^1.58.0",
+    "@types/node": "^24.10.9",
+    "@types/react": "^19.2.10",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "^5.9.3"
+  }
+}
