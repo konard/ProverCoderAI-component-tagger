@@ -1,11 +1,29 @@
 import type { types as t } from "@babel/core"
 
+import type { JsxTaggerContext } from "../../src/core/jsx-tagger.js"
+
 // CHANGE: extract common test fixtures to reduce code duplication
 // WHY: vibecode-linter detects duplicates in test setup code
 // REF: issue-25 test implementation
 // PURITY: CORE (pure test data factories)
 // INVARIANT: factories produce deterministic test nodes
 // COMPLEXITY: O(1) per factory call
+
+/**
+ * Creates a test context for JSX tagger tests.
+ *
+ * @pure true
+ * @complexity O(1)
+ */
+export const createTestContext = (
+  filename = "src/App.tsx",
+  attributeName = "data-path",
+  options?: { tagComponents?: boolean }
+): JsxTaggerContext => ({
+  relativeFilename: filename,
+  attributeName,
+  ...(options !== undefined && { options })
+})
 
 /**
  * Creates a mock SourceLocation for testing.
@@ -81,4 +99,54 @@ export const createNodeWithClassNameAndLocation = (
   const node = createNodeWithClassName(types, className)
   node.loc = createMockLocation(line, column)
   return node
+}
+
+/**
+ * Creates a simple JSX opening element without attributes for testing.
+ *
+ * @pure true
+ * @complexity O(1)
+ */
+export const createJsxElement = (types: typeof t, name: string): t.JSXOpeningElement => {
+  return types.jsxOpeningElement(types.jsxIdentifier(name), [], false)
+}
+
+/**
+ * Creates a JSX element with location info for testing.
+ *
+ * @pure true
+ * @complexity O(1)
+ */
+export const createJsxElementWithLocation = (
+  types: typeof t,
+  name: string,
+  line: number,
+  column: number
+): t.JSXOpeningElement => {
+  const element = types.jsxOpeningElement(types.jsxIdentifier(name), [], false)
+  element.loc = {
+    start: { line, column, index: 0 },
+    end: { line, column: column + name.length, index: 0 },
+    filename: "test.tsx",
+    identifierName: name
+  }
+  return element
+}
+
+/**
+ * Creates a JSX namespaced element for testing (e.g., svg:path).
+ *
+ * @pure true
+ * @complexity O(1)
+ */
+export const createNamespacedElement = (
+  types: typeof t,
+  namespace: string,
+  name: string
+): t.JSXOpeningElement => {
+  return types.jsxOpeningElement(
+    types.jsxNamespacedName(types.jsxIdentifier(namespace), types.jsxIdentifier(name)),
+    [],
+    false
+  )
 }
