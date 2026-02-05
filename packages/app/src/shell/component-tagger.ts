@@ -3,7 +3,7 @@ import type { Path } from "@effect/platform/Path"
 import { Effect, pipe } from "effect"
 import type { PluginOption } from "vite"
 
-import { isJsxFile } from "../core/component-path.js"
+import { babelPluginName, isJsxFile } from "../core/component-path.js"
 import { createJsxTaggerVisitor, type JsxTaggerContext } from "../core/jsx-tagger.js"
 import { NodePathLayer, relativeFromRoot } from "../core/path-service.js"
 
@@ -50,16 +50,12 @@ const toViteResult = (result: BabelTransformResult): ViteTransformResult | null 
 // EFFECT: Babel AST transformation
 // INVARIANT: each JSX opening element has at most one path attribute
 // COMPLEXITY: O(n)/O(1), n = number of JSX elements
-type ViteBabelState = {
-  readonly context: JsxTaggerContext
-}
-
-const makeBabelTagger = (relativeFilename: string): PluginObj<ViteBabelState> => {
+const makeBabelTagger = (relativeFilename: string): PluginObj => {
   const context: JsxTaggerContext = { relativeFilename }
 
   return {
-    name: "component-path-babel-tagger",
-    visitor: createJsxTaggerVisitor<ViteBabelState>(
+    name: babelPluginName,
+    visitor: createJsxTaggerVisitor(
       () => context,
       t
     )

@@ -22,6 +22,7 @@
 
 const path = require("node:path")
 
+const babelPluginName = "component-path-babel-tagger"
 const componentPathAttributeName = "path"
 const jsxFilePattern = /\.(tsx|jsx)(\?.*)?$/u
 
@@ -37,7 +38,7 @@ const attrExists = (node, attrName, t) =>
 
 module.exports = function componentTaggerBabelPlugin({ types: t }) {
   return {
-    name: "component-path-babel-tagger",
+    name: babelPluginName,
     visitor: {
       JSXOpeningElement(nodePath, state) {
         const { node } = nodePath
