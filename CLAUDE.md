@@ -265,16 +265,3 @@ describe("Message invariants", () => {
 Каждый эффект — это контролируемое взаимодействие с реальным миром.
 
 ПРИНЦИП: Сначала формализуем, потом программируем.
-
----
-
-Issue to solve: https://github.com/ProverCoderAI/component-tagger/issues/19
-Your prepared branch: issue-19-793570d5e6b2
-Your prepared working directory: /tmp/gh-issue-solver-1770281730695
-Your forked repository: konard/ProverCoderAI-component-tagger
-Original repository (upstream): ProverCoderAI/component-tagger
-
-Proceed.
-
-
-Run timestamp: 2026-02-05T08:55:37.694Z
