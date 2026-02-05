@@ -1,11 +1,23 @@
 {
   "name": "@prover-coder-ai/component-tagger",
-  "version": "1.0.22",
-  "description": "Component tagger Vite plugin for JSX metadata",
+  "version": "1.0.23",
+  "description": "Component tagger Vite plugin and Babel plugin for JSX metadata",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./babel": {
+      "types": "./dist/shell/babel-plugin.d.ts",
+      "require": "./babel.cjs",
+      "import": "./dist/shell/babel-plugin.js"
+    }
+  },
   "files": [
-    "dist"
+    "dist",
+    "babel.cjs"
   ],
   "directories": {
     "doc": "doc"
@@ -31,6 +43,8 @@
   "keywords": [
     "effect",
     "vite",
+    "babel",
+    "nextjs",
     "plugin",
     "tagger"
   ],

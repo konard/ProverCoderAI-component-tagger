@@ -2,7 +2,7 @@
   "presets": ["next/babel"],
   "env": {
     "development": {
-      "plugins": ["./babel-plugin-component-tagger.cjs"]
+      "plugins": ["@prover-coder-ai/component-tagger/babel"]
     }
   }
 }

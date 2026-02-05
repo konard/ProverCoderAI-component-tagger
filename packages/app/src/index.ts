@@ -10,3 +10,7 @@
 // COMPLEXITY: O(1)/O(1)
 export { componentPathAttributeName, formatComponentPathValue, isJsxFile } from "./core/component-path.js"
 export { componentTagger } from "./shell/component-tagger.js"
+export {
+  componentTaggerBabelPlugin,
+  type ComponentTaggerBabelPluginOptions
+} from "./shell/babel-plugin.js"
