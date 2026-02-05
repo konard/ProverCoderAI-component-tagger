@@ -11,9 +11,9 @@
  *   "plugins": ["@prover-coder-ai/component-tagger/babel"]
  * }
  */
-// CHANGE: provide CommonJS entry point for Babel plugin.
-// WHY: Babel configuration often requires CommonJS modules.
-// REF: issue-12
+// CHANGE: provide CommonJS entry point for Babel plugin with configurable attributeName.
+// WHY: Babel configuration often requires CommonJS modules; support custom attribute names.
+// REF: issue-12, issue-14
 // FORMAT THEOREM: forall require: require(babel.cjs) -> PluginFactory
 // PURITY: SHELL
 // EFFECT: n/a
@@ -22,7 +22,7 @@
 
 const path = require("node:path")
 
-const componentPathAttributeName = "path"
+const componentPathAttributeName = "data-path"
 const jsxFilePattern = /\.(tsx|jsx)(\?.*)?$/u
 
 const isJsxFile = (id) => jsxFilePattern.test(id)
@@ -58,21 +58,22 @@ module.exports = function componentTaggerBabelPlugin({ types: t }) {
           return
         }
 
-        // Skip if already has path attribute
-        if (attrExists(node, componentPathAttributeName, t)) {
-          return
-        }
-
-        // Compute relative path from root
+        // Compute relative path from root and get attribute name
         const opts = state.opts || {}
         const rootDir = opts.rootDir || state.cwd || process.cwd()
+        const attributeName = opts.attributeName || componentPathAttributeName
         const relativeFilename = path.relative(rootDir, filename)
+
+        // Skip if already has the specified attribute (idempotency)
+        if (attrExists(node, attributeName, t)) {
+          return
+        }
 
         const { column, line } = node.loc.start
         const value = formatComponentPathValue(relativeFilename, line, column)
 
         node.attributes.push(
-          t.jsxAttribute(t.jsxIdentifier(componentPathAttributeName), t.stringLiteral(value))
+          t.jsxAttribute(t.jsxIdentifier(attributeName), t.stringLiteral(value))
         )
       }
     }

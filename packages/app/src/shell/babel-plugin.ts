@@ -1,6 +1,6 @@
 import { type PluginObj, types as t } from "@babel/core"
 
-import { isJsxFile } from "../core/component-path.js"
+import { componentPathAttributeName, isJsxFile } from "../core/component-path.js"
 import { createJsxTaggerVisitor, type JsxTaggerContext } from "../core/jsx-tagger.js"
 import { computeRelativePath } from "../core/path-service.js"
 
@@ -13,6 +13,11 @@ export type ComponentTaggerBabelPluginOptions = {
    * Defaults to process.cwd().
    */
   readonly rootDir?: string
+  /**
+   * Name of the attribute to add to JSX elements.
+   * Defaults to "data-path".
+   */
+  readonly attributeName?: string
 }
 
 type BabelState = {
@@ -31,14 +36,14 @@ type BabelState = {
  * @invariant returns null when filename is undefined or not a JSX file
  * @complexity O(n) where n = path length
  */
-// CHANGE: extract context creation for standalone Babel plugin.
-// WHY: enable unified visitor to work with Babel state.
-// QUOTE(TZ): "А ты можешь сделать что бы бизнес логика оставалось одной?"
-// REF: issue-12-comment (unified interface request)
+// CHANGE: add support for configurable attributeName from options.
+// WHY: enable unified visitor to work with Babel state and custom attribute names.
+// QUOTE(issue-14): "Add option attributeName (default: data-path) for both plugins"
+// REF: issue-14
 // FORMAT THEOREM: ∀ state: getContext(state) = context ↔ isValidState(state)
 // PURITY: CORE
 // EFFECT: n/a
-// INVARIANT: context contains valid relative path
+// INVARIANT: context contains valid relative path and attribute name
 // COMPLEXITY: O(n)/O(1)
 const getContextFromState = (state: BabelState): JsxTaggerContext | null => {
   const filename = state.filename
@@ -56,8 +61,9 @@ const getContextFromState = (state: BabelState): JsxTaggerContext | null => {
   // Compute relative path from root using Effect's Path service
   const rootDir = state.opts?.rootDir ?? state.cwd ?? ""
   const relativeFilename = computeRelativePath(rootDir, filename)
+  const attributeName = state.opts?.attributeName ?? componentPathAttributeName
 
-  return { relativeFilename }
+  return { relativeFilename, attributeName }
 }
 
 /**

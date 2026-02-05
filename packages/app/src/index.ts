@@ -17,4 +17,4 @@ export {
   processJsxElement
 } from "./core/jsx-tagger.js"
 export { componentTaggerBabelPlugin, type ComponentTaggerBabelPluginOptions } from "./shell/babel-plugin.js"
-export { componentTagger } from "./shell/component-tagger.js"
+export { componentTagger, type ComponentTaggerOptions } from "./shell/component-tagger.js"
