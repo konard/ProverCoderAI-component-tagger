@@ -36,6 +36,64 @@ const createJsxElementWithLocation = (name: string, line: number, column: number
   return element
 }
 
+// CHANGE: extract common test component creation to reduce duplication
+// WHY: avoid duplicate code detection by linter across multiple test cases
+// PURITY: CORE
+// EFFECT: n/a
+// INVARIANT: creates consistent test fixtures
+// COMPLEXITY: O(1)/O(1)
+const createTestComponents = () => ({
+  myComponent: createJsxElement("MyComponent"),
+  route: createJsxElement("Route")
+})
+
+// CHANGE: extract namespaced element creation to reduce duplication
+// WHY: avoid duplicate code detection by linter across multiple test cases
+// PURITY: CORE
+// EFFECT: n/a
+// INVARIANT: creates consistent JSX namespaced elements for testing
+// COMPLEXITY: O(1)/O(1)
+const createNamespacedElement = (namespace: string, name: string): t.JSXOpeningElement => {
+  return t.jsxOpeningElement(
+    t.jsxNamespacedName(t.jsxIdentifier(namespace), t.jsxIdentifier(name)),
+    [],
+    false
+  )
+}
+
+// CHANGE: extract test context creation to reduce duplication
+// WHY: avoid duplicate code detection by linter across multiple test cases
+// PURITY: CORE
+// EFFECT: n/a
+// INVARIANT: creates consistent test contexts
+// COMPLEXITY: O(1)/O(1)
+const createTestContext = (
+  filename: string = "src/App.tsx",
+  attributeName: string = "data-path",
+  options?: { tagComponents?: boolean }
+): JsxTaggerContext => ({
+  relativeFilename: filename,
+  attributeName,
+  ...(options !== undefined && { options })
+})
+
+// CHANGE: extract common test assertion logic to reduce duplication
+// WHY: avoid duplicate code detection by linter when testing processJsxElement
+// PURITY: CORE
+// EFFECT: n/a
+// INVARIANT: performs consistent assertions on processJsxElement results
+// COMPLEXITY: O(1)/O(1)
+const assertProcessResult = (
+  element: t.JSXOpeningElement,
+  context: JsxTaggerContext,
+  expectedResult: boolean,
+  expectedAttributeCount: number
+) => {
+  const result = processJsxElement(element, context, t)
+  expect(result).toBe(expectedResult)
+  expect(element.attributes).toHaveLength(expectedAttributeCount)
+}
+
 describe("jsx-tagger", () => {
   describe("shouldTagElement", () => {
     describe("HTML tags (lowercase)", () => {
@@ -65,8 +123,7 @@ describe("jsx-tagger", () => {
     describe("React Components (PascalCase)", () => {
       it.effect("tags Components when tagComponents is true", () =>
         Effect.sync(() => {
-          const myComponent = createJsxElement("MyComponent")
-          const route = createJsxElement("Route")
+          const { myComponent, route } = createTestComponents()
 
           expect(shouldTagElement(myComponent, { tagComponents: true }, t)).toBe(true)
           expect(shouldTagElement(route, { tagComponents: true }, t)).toBe(true)
@@ -74,8 +131,7 @@ describe("jsx-tagger", () => {
 
       it.effect("skips Components when tagComponents is false", () =>
         Effect.sync(() => {
-          const myComponent = createJsxElement("MyComponent")
-          const route = createJsxElement("Route")
+          const { myComponent, route } = createTestComponents()
 
           expect(shouldTagElement(myComponent, { tagComponents: false }, t)).toBe(false)
           expect(shouldTagElement(route, { tagComponents: false }, t)).toBe(false)
@@ -83,8 +139,7 @@ describe("jsx-tagger", () => {
 
       it.effect("tags Components by default (undefined options)", () =>
         Effect.sync(() => {
-          const myComponent = createJsxElement("MyComponent")
-          const route = createJsxElement("Route")
+          const { myComponent, route } = createTestComponents()
 
           // Default behavior: tag everything
           expect(shouldTagElement(myComponent, undefined, t)).toBe(true)
@@ -93,8 +148,7 @@ describe("jsx-tagger", () => {
 
       it.effect("tags Components by default (empty options object)", () =>
         Effect.sync(() => {
-          const myComponent = createJsxElement("MyComponent")
-          const route = createJsxElement("Route")
+          const { myComponent, route } = createTestComponents()
 
           expect(shouldTagElement(myComponent, {}, t)).toBe(true)
           expect(shouldTagElement(route, {}, t)).toBe(true)
@@ -119,11 +173,7 @@ describe("jsx-tagger", () => {
       it.effect("tags namespaced elements based on namespace name", () =>
         Effect.sync(() => {
           // svg:path - namespace is lowercase "svg"
-          const namespacedElement = t.jsxOpeningElement(
-            t.jsxNamespacedName(t.jsxIdentifier("svg"), t.jsxIdentifier("path")),
-            [],
-            false
-          )
+          const namespacedElement = createNamespacedElement("svg", "path")
 
           expect(shouldTagElement(namespacedElement, { tagComponents: true }, t)).toBe(true)
           expect(shouldTagElement(namespacedElement, { tagComponents: false }, t)).toBe(true)
@@ -132,11 +182,7 @@ describe("jsx-tagger", () => {
       it.effect("skips namespaced elements with uppercase namespace", () =>
         Effect.sync(() => {
           // Custom:Element - namespace is uppercase "Custom"
-          const namespacedElement = t.jsxOpeningElement(
-            t.jsxNamespacedName(t.jsxIdentifier("Custom"), t.jsxIdentifier("Element")),
-            [],
-            false
-          )
+          const namespacedElement = createNamespacedElement("Custom", "Element")
 
           expect(shouldTagElement(namespacedElement, { tagComponents: true }, t)).toBe(true)
           expect(shouldTagElement(namespacedElement, { tagComponents: false }, t)).toBe(false)
@@ -148,7 +194,7 @@ describe("jsx-tagger", () => {
     it.effect("tags HTML elements with default options", () =>
       Effect.sync(() => {
         const divElement = createJsxElementWithLocation("div", 1, 0)
-        const context: JsxTaggerContext = { relativeFilename: "src/App.tsx", attributeName: "data-path" }
+        const context = createTestContext()
 
         const result = processJsxElement(divElement, context, t)
 
@@ -169,48 +215,28 @@ describe("jsx-tagger", () => {
     it.effect("tags React Components with tagComponents: true", () =>
       Effect.sync(() => {
         const myComponent = createJsxElementWithLocation("MyComponent", 5, 2)
-        const context: JsxTaggerContext = {
-          relativeFilename: "src/App.tsx",
-          attributeName: "data-path",
-          options: { tagComponents: true }
-        }
-
-        const result = processJsxElement(myComponent, context, t)
-
-        expect(result).toBe(true)
-        expect(myComponent.attributes).toHaveLength(1)
+        const context = createTestContext("src/App.tsx", "data-path", { tagComponents: true })
+        assertProcessResult(myComponent, context, true, 1)
       }))
 
     it.effect("skips React Components with tagComponents: false", () =>
       Effect.sync(() => {
         const myComponent = createJsxElementWithLocation("MyComponent", 5, 2)
-        const context: JsxTaggerContext = {
-          relativeFilename: "src/App.tsx",
-          attributeName: "data-path",
-          options: { tagComponents: false }
-        }
-
-        const result = processJsxElement(myComponent, context, t)
-
-        expect(result).toBe(false)
-        expect(myComponent.attributes).toHaveLength(0)
+        const context = createTestContext("src/App.tsx", "data-path", { tagComponents: false })
+        assertProcessResult(myComponent, context, false, 0)
       }))
 
     it.effect("tags React Components by default (no options)", () =>
       Effect.sync(() => {
         const myComponent = createJsxElementWithLocation("Route", 10, 4)
-        const context: JsxTaggerContext = { relativeFilename: "src/Routes.tsx", attributeName: "data-path" }
-
-        const result = processJsxElement(myComponent, context, t)
-
-        expect(result).toBe(true)
-        expect(myComponent.attributes).toHaveLength(1)
+        const context = createTestContext("src/Routes.tsx")
+        assertProcessResult(myComponent, context, true, 1)
       }))
 
     it.effect("is idempotent - does not add duplicate path attributes", () =>
       Effect.sync(() => {
         const divElement = createJsxElementWithLocation("div", 1, 0)
-        const context: JsxTaggerContext = { relativeFilename: "src/App.tsx", attributeName: "data-path" }
+        const context = createTestContext()
 
         // First call should add attribute
         const result1 = processJsxElement(divElement, context, t)
@@ -227,12 +253,8 @@ describe("jsx-tagger", () => {
       Effect.sync(() => {
         const divElement = t.jsxOpeningElement(t.jsxIdentifier("div"), [], false)
         // No loc property set
-        const context: JsxTaggerContext = { relativeFilename: "src/App.tsx", attributeName: "data-path" }
-
-        const result = processJsxElement(divElement, context, t)
-
-        expect(result).toBe(false)
-        expect(divElement.attributes).toHaveLength(0)
+        const context = createTestContext()
+        assertProcessResult(divElement, context, false, 0)
       }))
   })
 })

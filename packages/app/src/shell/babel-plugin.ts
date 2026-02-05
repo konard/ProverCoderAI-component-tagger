@@ -48,6 +48,23 @@ type BabelState = {
  * @invariant context includes both attributeName and tagComponents options from state
  * @complexity O(n) where n = path length
  */
+// CHANGE: extract root directory resolution to reduce complexity
+// WHY: separate concerns and keep functions under complexity threshold of 8
+// PURITY: CORE
+// EFFECT: n/a
+// INVARIANT: returns non-empty directory path
+// COMPLEXITY: O(1)/O(1)
+const getRootDir = (state: BabelState): string => state.opts?.rootDir ?? state.cwd ?? process.cwd()
+
+// CHANGE: extract options extraction to reduce complexity
+// WHY: separate concerns and keep functions under complexity threshold of 8
+// PURITY: CORE
+// EFFECT: n/a
+// INVARIANT: returns options or undefined
+// COMPLEXITY: O(1)/O(1)
+const extractOptions = (state: BabelState): JsxTaggerOptions | undefined =>
+  state.opts ? { tagComponents: state.opts.tagComponents } : undefined
+
 // CHANGE: extract context creation for standalone Babel plugin with both attributeName and options propagation.
 // WHY: enable unified visitor to work with Babel state, custom attribute names, and configurable tagging.
 // QUOTE(TZ): "А ты можешь сделать что бы бизнес логика оставалось одной?"
@@ -58,7 +75,7 @@ type BabelState = {
 // PURITY: CORE
 // EFFECT: n/a
 // INVARIANT: context contains valid relative path, attribute name, and propagates options
-// COMPLEXITY: O(n)/O(1)
+// COMPLEXITY: O(1)/O(1)
 const getContextFromState = (state: BabelState): JsxTaggerContext | null => {
   const filename = state.filename
 
@@ -73,14 +90,10 @@ const getContextFromState = (state: BabelState): JsxTaggerContext | null => {
   }
 
   // Compute relative path from root using Effect's Path service
-  const rootDir = state.opts?.rootDir ?? state.cwd ?? process.cwd()
+  const rootDir = getRootDir(state)
   const relativeFilename = computeRelativePath(rootDir, filename)
   const attributeName = state.opts?.attributeName ?? componentPathAttributeName
-
-  // Extract tagging options from Babel plugin options
-  const options: JsxTaggerOptions | undefined = state.opts
-    ? { tagComponents: state.opts.tagComponents }
-    : undefined
+  const options = extractOptions(state)
 
   return { relativeFilename, attributeName, options }
 }

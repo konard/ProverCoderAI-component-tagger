@@ -190,7 +190,9 @@ export const componentTagger = (options?: ComponentTaggerOptions): PluginOption 
         return null
       }
 
-      return Effect.runPromise(pipe(runTransform(code, id, resolvedRoot, attributeName, jsxOptions), Effect.provide(NodePathLayer)))
+      return Effect.runPromise(
+        pipe(runTransform(code, id, resolvedRoot, attributeName, jsxOptions), Effect.provide(NodePathLayer))
+      )
     }
   }
 }
