@@ -3,7 +3,7 @@ import type { Path } from "@effect/platform/Path"
 import { Effect, pipe } from "effect"
 import type { PluginOption } from "vite"
 
-import { isJsxFile } from "../core/component-path.js"
+import { isJsxFile, normalizeModuleId } from "../core/component-path.js"
 import { createJsxTaggerVisitor, type JsxTaggerContext } from "../core/jsx-tagger.js"
 import { NodePathLayer, relativeFromRoot } from "../core/path-service.js"
 
@@ -20,11 +20,6 @@ class ComponentTaggerError extends Error {
   constructor(message: string, override readonly cause: Error) {
     super(message)
   }
-}
-
-const stripQuery = (id: string): string => {
-  const queryIndex = id.indexOf("?")
-  return queryIndex === -1 ? id : id.slice(0, queryIndex)
 }
 
 const toViteResult = (result: BabelTransformResult): ViteTransformResult | null => {
@@ -93,7 +88,7 @@ const runTransform = (
   id: string,
   rootDir: string
 ): Effect.Effect<ViteTransformResult | null, ComponentTaggerError, Path> => {
-  const cleanId = stripQuery(id)
+  const cleanId = normalizeModuleId(id)
 
   return pipe(
     relativeFromRoot(rootDir, cleanId),

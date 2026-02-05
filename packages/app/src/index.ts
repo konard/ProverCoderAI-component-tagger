@@ -8,7 +8,12 @@
 // EFFECT: n/a
 // INVARIANT: exports remain stable for consumers
 // COMPLEXITY: O(1)/O(1)
-export { componentPathAttributeName, formatComponentPathValue, isJsxFile } from "./core/component-path.js"
+export {
+  componentPathAttributeName,
+  formatComponentPathValue,
+  isJsxFile,
+  normalizeModuleId
+} from "./core/component-path.js"
 export {
   attrExists,
   createJsxTaggerVisitor,
