@@ -3,9 +3,20 @@ import type { Path } from "@effect/platform/Path"
 import { Effect, pipe } from "effect"
 import type { PluginOption } from "vite"
 
-import { isJsxFile, normalizeModuleId } from "../core/component-path.js"
+import { componentPathAttributeName, isJsxFile, normalizeModuleId } from "../core/component-path.js"
 import { createJsxTaggerVisitor, type JsxTaggerContext } from "../core/jsx-tagger.js"
 import { NodePathLayer, relativeFromRoot } from "../core/path-service.js"
+
+/**
+ * Options for the component tagger Vite plugin.
+ */
+export type ComponentTaggerOptions = {
+  /**
+   * Name of the attribute to add to JSX elements.
+   * Defaults to "data-path".
+   */
+  readonly attributeName?: string
+}
 
 type BabelTransformResult = Awaited<ReturnType<typeof transformAsync>>
 
@@ -49,8 +60,8 @@ type ViteBabelState = {
   readonly context: JsxTaggerContext
 }
 
-const makeBabelTagger = (relativeFilename: string): PluginObj<ViteBabelState> => {
-  const context: JsxTaggerContext = { relativeFilename }
+const makeBabelTagger = (relativeFilename: string, attributeName: string): PluginObj<ViteBabelState> => {
+  const context: JsxTaggerContext = { relativeFilename, attributeName }
 
   return {
     name: "component-path-babel-tagger",
@@ -86,7 +97,8 @@ const makeBabelTagger = (relativeFilename: string): PluginObj<ViteBabelState> =>
 const runTransform = (
   code: string,
   id: string,
-  rootDir: string
+  rootDir: string,
+  attributeName: string
 ): Effect.Effect<ViteTransformResult | null, ComponentTaggerError, Path> => {
   const cleanId = normalizeModuleId(id)
 
@@ -103,7 +115,7 @@ const runTransform = (
               sourceType: "module",
               plugins: ["typescript", "jsx", "decorators-legacy"]
             },
-            plugins: [makeBabelTagger(relative)],
+            plugins: [makeBabelTagger(relative, attributeName)],
             sourceMaps: true
           }),
         catch: (cause) => {
@@ -119,6 +131,7 @@ const runTransform = (
 /**
  * Creates a Vite plugin that injects a single component-path data attribute.
  *
+ * @param options - Configuration options for the plugin.
  * @returns Vite PluginOption for pre-transform tagging.
  *
  * @pure false
@@ -127,17 +140,18 @@ const runTransform = (
  * @complexity O(n) time / O(1) space per JSX module
  * @throws Never - errors are typed and surfaced by Effect
  */
-// CHANGE: expose a Vite plugin that tags JSX with only path.
-// WHY: reduce attribute noise while keeping full path metadata.
-// QUOTE(TZ): "Сам компонент должен быть в текущем app но вот что бы его протестировать надо создать ещё один проект который наш текущий апп будет подключать"
-// REF: user-2026-01-14-frontend-consumer
+// CHANGE: add attributeName option with default "data-path".
+// WHY: support customizable attribute names while maintaining backwards compatibility.
+// QUOTE(issue-14): "Add option attributeName (default: data-path) for both plugins"
+// REF: issue-14
 // SOURCE: n/a
-// FORMAT THEOREM: forall id: isJsxFile(id) -> transform(id) adds component-path
+// FORMAT THEOREM: forall id: isJsxFile(id) -> transform(id) adds specified attribute
 // PURITY: SHELL
 // EFFECT: Effect<ViteTransformResult | null, ComponentTaggerError, never>
-// INVARIANT: no duplicate path attributes
+// INVARIANT: no duplicate attributes with the same name
 // COMPLEXITY: O(n)/O(1)
-export const componentTagger = (): PluginOption => {
+export const componentTagger = (options?: ComponentTaggerOptions): PluginOption => {
+  const attributeName = options?.attributeName ?? componentPathAttributeName
   let resolvedRoot = process.cwd()
 
   return {
@@ -152,7 +166,7 @@ export const componentTagger = (): PluginOption => {
         return null
       }
 
-      return Effect.runPromise(pipe(runTransform(code, id, resolvedRoot), Effect.provide(NodePathLayer)))
+      return Effect.runPromise(pipe(runTransform(code, id, resolvedRoot, attributeName), Effect.provide(NodePathLayer)))
     }
   }
 }
