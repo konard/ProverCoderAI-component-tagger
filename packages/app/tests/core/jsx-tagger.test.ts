@@ -17,8 +17,9 @@ import { createEmptyNode, createMockLocation, createNodeWithClassName } from "./
 // CHANGE: extract context factory to module scope per linter requirement
 // WHY: unicorn/consistent-function-scoping rule enforces scope consistency
 // REF: ESLint unicorn plugin rules
-const createTestContext = (filename = "src/App.tsx"): JsxTaggerContext => ({
-  relativeFilename: filename
+const createTestContext = (filename = "src/App.tsx", attributeName = "data-path"): JsxTaggerContext => ({
+  relativeFilename: filename,
+  attributeName
 })
 
 describe("jsx-tagger", () => {
@@ -30,38 +31,38 @@ describe("jsx-tagger", () => {
     it.effect("returns false when element has no attributes", () =>
       Effect.sync(() => {
         const node = t.jsxOpeningElement(t.jsxIdentifier("div"), [])
-        expect(attrExists(node, "path", t)).toBe(false)
+        expect(attrExists(node, "data-path", t)).toBe(false)
       }))
 
     it.effect("returns false when attribute does not exist", () =>
       Effect.sync(() => {
         const node = createNodeWithClassName(t)
-        expect(attrExists(node, "path", t)).toBe(false)
+        expect(attrExists(node, "data-path", t)).toBe(false)
       }))
 
     it.effect("returns true when attribute exists", () =>
       Effect.sync(() => {
         const node = t.jsxOpeningElement(t.jsxIdentifier("div"), [
-          t.jsxAttribute(t.jsxIdentifier("path"), t.stringLiteral("src/App.tsx:10:5"))
+          t.jsxAttribute(t.jsxIdentifier("data-path"), t.stringLiteral("src/App.tsx:10:5"))
         ])
-        expect(attrExists(node, "path", t)).toBe(true)
+        expect(attrExists(node, "data-path", t)).toBe(true)
       }))
 
     it.effect("returns true when attribute exists among multiple attributes", () =>
       Effect.sync(() => {
         const node = t.jsxOpeningElement(t.jsxIdentifier("div"), [
           t.jsxAttribute(t.jsxIdentifier("className"), t.stringLiteral("container")),
-          t.jsxAttribute(t.jsxIdentifier("path"), t.stringLiteral("src/App.tsx:10:5")),
+          t.jsxAttribute(t.jsxIdentifier("data-path"), t.stringLiteral("src/App.tsx:10:5")),
           t.jsxAttribute(t.jsxIdentifier("id"), t.stringLiteral("main"))
         ])
-        expect(attrExists(node, "path", t)).toBe(true)
+        expect(attrExists(node, "data-path", t)).toBe(true)
       }))
 
     it.effect("returns false for spread attributes", () =>
       Effect.sync(() => {
         const spreadAttr = t.jsxSpreadAttribute(t.identifier("props"))
         const node = t.jsxOpeningElement(t.jsxIdentifier("div"), [spreadAttr])
-        expect(attrExists(node, "path", t)).toBe(false)
+        expect(attrExists(node, "data-path", t)).toBe(false)
       }))
 
     it.effect("distinguishes between different attribute names", () =>
@@ -81,11 +82,11 @@ describe("jsx-tagger", () => {
 
     it.effect("creates JSX attribute with correct format", () =>
       Effect.sync(() => {
-        const attr = createPathAttribute("src/App.tsx", 10, 5, t)
+        const attr = createPathAttribute("data-path", "src/App.tsx", 10, 5, t)
 
         expect(t.isJSXAttribute(attr)).toBe(true)
         expect(t.isJSXIdentifier(attr.name)).toBe(true)
-        expect(attr.name.name).toBe("path")
+        expect(attr.name.name).toBe("data-path")
         expect(t.isStringLiteral(attr.value)).toBe(true)
         if (t.isStringLiteral(attr.value)) {
           expect(attr.value.value).toBe("src/App.tsx:10:5")
@@ -94,7 +95,7 @@ describe("jsx-tagger", () => {
 
     it.effect("handles nested directory paths", () =>
       Effect.sync(() => {
-        const attr = createPathAttribute("src/components/ui/Button.tsx", 42, 8, t)
+        const attr = createPathAttribute("data-path", "src/components/ui/Button.tsx", 42, 8, t)
 
         if (t.isStringLiteral(attr.value)) {
           expect(attr.value.value).toBe("src/components/ui/Button.tsx:42:8")
@@ -103,7 +104,7 @@ describe("jsx-tagger", () => {
 
     it.effect("handles line 1 and column 0", () =>
       Effect.sync(() => {
-        const attr = createPathAttribute("index.tsx", 1, 0, t)
+        const attr = createPathAttribute("data-path", "index.tsx", 1, 0, t)
 
         if (t.isStringLiteral(attr.value)) {
           expect(attr.value.value).toBe("index.tsx:1:0")
@@ -112,7 +113,7 @@ describe("jsx-tagger", () => {
 
     it.effect("handles large line and column numbers", () =>
       Effect.sync(() => {
-        const attr = createPathAttribute("src/LargeFile.tsx", 9999, 999, t)
+        const attr = createPathAttribute("data-path", "src/LargeFile.tsx", 9999, 999, t)
 
         if (t.isStringLiteral(attr.value)) {
           expect(attr.value.value).toBe("src/LargeFile.tsx:9999:999")
@@ -135,7 +136,7 @@ describe("jsx-tagger", () => {
 
         expect(result).toBe(true)
         expect(node.attributes.length).toBe(1)
-        expect(attrExists(node, "path", t)).toBe(true)
+        expect(attrExists(node, "data-path", t)).toBe(true)
 
         const pathAttr = node.attributes[0]
         if (t.isJSXAttribute(pathAttr) && t.isStringLiteral(pathAttr.value)) {
@@ -152,7 +153,7 @@ describe("jsx-tagger", () => {
 
         expect(result).toBe(true)
         expect(node.attributes.length).toBe(2)
-        expect(attrExists(node, "path", t)).toBe(true)
+        expect(attrExists(node, "data-path", t)).toBe(true)
       }))
 
     it.effect("skips element without location info (loc === null)", () =>
@@ -164,13 +165,13 @@ describe("jsx-tagger", () => {
 
         expect(result).toBe(false)
         expect(node.attributes.length).toBe(0)
-        expect(attrExists(node, "path", t)).toBe(false)
+        expect(attrExists(node, "data-path", t)).toBe(false)
       }))
 
     it.effect("skips element that already has path attribute (idempotency)", () =>
       Effect.sync(() => {
         const node = t.jsxOpeningElement(t.jsxIdentifier("div"), [
-          t.jsxAttribute(t.jsxIdentifier("path"), t.stringLiteral("src/Old.tsx:5:0"))
+          t.jsxAttribute(t.jsxIdentifier("data-path"), t.stringLiteral("src/Old.tsx:5:0"))
         ])
         node.loc = {
           start: { line: 20, column: 3, index: 0 },
@@ -219,7 +220,7 @@ describe("jsx-tagger", () => {
         processJsxElement(node, context, t)
 
         const pathAttr = node.attributes.find(
-          (attr) => t.isJSXAttribute(attr) && t.isJSXIdentifier(attr.name, { name: "path" })
+          (attr) => t.isJSXAttribute(attr) && t.isJSXIdentifier(attr.name, { name: "data-path" })
         )
         expect(pathAttr).toBeDefined()
         if (pathAttr && t.isJSXAttribute(pathAttr) && t.isStringLiteral(pathAttr.value)) {
@@ -247,7 +248,7 @@ describe("jsx-tagger", () => {
         // Verify original attributes still exist
         expect(attrExists(node, "className", t)).toBe(true)
         expect(attrExists(node, "id", t)).toBe(true)
-        expect(attrExists(node, "path", t)).toBe(true)
+        expect(attrExists(node, "data-path", t)).toBe(true)
       }))
   })
 })
