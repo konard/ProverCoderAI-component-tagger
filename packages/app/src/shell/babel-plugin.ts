@@ -59,7 +59,7 @@ const getContextFromState = (state: BabelState): JsxTaggerContext | null => {
   }
 
   // Compute relative path from root using Effect's Path service
-  const rootDir = state.opts?.rootDir ?? state.cwd ?? ""
+  const rootDir = state.opts?.rootDir ?? state.cwd ?? process.cwd()
   const relativeFilename = computeRelativePath(rootDir, filename)
   const attributeName = state.opts?.attributeName ?? componentPathAttributeName
 
