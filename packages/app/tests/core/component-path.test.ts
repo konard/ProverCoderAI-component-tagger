@@ -4,9 +4,9 @@ import { Effect } from "effect"
 import { componentPathAttributeName, formatComponentPathValue, isJsxFile } from "../../src/core/component-path.js"
 
 describe("component-path", () => {
-  it.effect("exposes the path attribute name", () =>
+  it.effect("exposes the data-path attribute name", () =>
     Effect.sync(() => {
-      expect(componentPathAttributeName).toBe("path")
+      expect(componentPathAttributeName).toBe("data-path")
     }))
 
   it.effect("formats the component path payload", () =>
